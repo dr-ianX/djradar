@@ -34,33 +34,40 @@ Crea una hoja de Google Sheets con las siguientes columnas (nombres flexibles):
 
 ### 3. Configurar en Render
 
-1. Crea un nuevo **Static Site** en Render
-2. Conecta este repositorio de GitHub
-3. En **Build & Deploy**, configura:
-   - **Build Command**: `npm run build`
-   - **Publish Directory**: `.`
-4. Agrega variable de entorno:
+1. Crea un nuevo **Web Service** en Render
+2. Selecciona **Node.js** como entorno
+3. Conecta este repositorio de GitHub
+4. En **Build & Deploy**, configura:
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+5. Agrega variable de entorno:
    - **Key**: `SHEET_URL`
    - **Value**: [Tu URL CSV de Google Sheets]
 
-### 4. Variables de Entorno
+### 4. Arquitectura de Seguridad
 
-La aplicación usa la variable `SHEET_URL` para obtener los datos. Durante el build, el comando `sed` reemplaza el placeholder `__SHEET_URL__` en el HTML con el valor real.
+La aplicación usa un backend Express simple que:
+- Sirve el HTML estático
+- Inyecta la variable de entorno `SHEET_URL` dinámicamente
+- Reemplaza el placeholder `__SHEET_URL__` con la URL real
+- Mantiene la URL segura fuera del código fuente público
 
 ## 📱 Uso Local
 
 1. Clona el repositorio
-2. Abre `index.html` en tu navegador
-3. Para usar tus propios datos, edita la línea 367 en `index.html`:
-   ```javascript
-   window.SHEET_URL = 'https://docs.google.com/spreadsheets/d/TU_ID/export?format=csv';
-   ```
+2. Instala dependencias: `npm install`
+3. Configura variable de entorno:
+   - Windows: `set SHEET_URL=tu_url_csv`
+   - Mac/Linux: `export SHEET_URL=tu_url_csv`
+4. Inicia el servidor: `npm start`
+5. Abre http://localhost:3000 en tu navegador
 
 ## 🎨 Tecnologías
 
 - **HTML5** - Estructura
 - **CSS3** - Estilos (personalizado)
-- **JavaScript (Vanilla)** - Lógica
+- **JavaScript (Vanilla)** - Lógica frontend
+- **Express.js** - Backend simple para inyección de variables
 - **Leaflet.js** - Mapas
 - **CARTO Dark** - Tiles del mapa
 - **Font Awesome** - Iconos
@@ -71,7 +78,8 @@ La aplicación usa la variable `SHEET_URL` para obtener los datos. Durante el bu
 ```
 DJRadar/
 ├── index.html          # Aplicación completa (HTML + CSS + JS)
-├── package.json        # Configuración de Node.js para build
+├── server.js           # Backend Express para inyección de variables
+├── package.json        # Dependencias y scripts de Node.js
 ├── render.yaml         # Configuración de despliegue en Render
 └── README.md           # Este archivo
 ```
