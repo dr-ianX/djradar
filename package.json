@@ -4,7 +4,8 @@
   "description": "DJ Radar - Mapa interactivo de DJs en Los Cabos en tiempo real",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "build": "echo 'Build complete'"
   },
   "dependencies": {
     "express": "^4.18.2"
