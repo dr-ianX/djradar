@@ -503,6 +503,10 @@ p<!DOCTYPE html>
             const query = String(placeValue || '').trim();
             if (!query) return null;
 
+            // Try to extract coordinates from common Google Maps / lat,lng patterns before requesting the server
+            const coord = extractLatLngFromPlaceString(query);
+            if (coord) return coord;
+
             try {
                 const response = await fetch(`/api/geocode?place=${encodeURIComponent(query)}`);
                 if (!response.ok) return null;
@@ -513,6 +517,18 @@ p<!DOCTYPE html>
                 console.warn('Geocoding failed for:', query, error);
                 return null;
             }
+        }
+
+        // Extract lat/lng from strings like "@12.345,-67.890,15z" or "12.345, -67.890"
+        function extractLatLngFromPlaceString(s) {
+            if (!s) return null;
+            // Look for @lat,lng pattern (Google Maps)
+            let m = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+            if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+            // Look for simple lat,lng
+            m = s.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+            if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+            return null;
         }
 
         async function normalizeDJs(rawData) {
@@ -540,14 +556,21 @@ p<!DOCTYPE html>
                 const placeValue = row[colPlace] || venue || '';
                 const parsedLat = parseFloat(row.lat || row.latitud || '');
                 const parsedLng = parseFloat(row.lng || row.longitud || '');
-                let lat = Number.isFinite(parsedLat) ? parsedLat : CENTER_LAT;
-                let lng = Number.isFinite(parsedLng) ? parsedLng : CENTER_LNG;
+                let lat = Number.isFinite(parsedLat) ? parsedLat : null;
+                let lng = Number.isFinite(parsedLng) ? parsedLng : null;
 
-                if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
-                    const geocoded = await geocodePlace(placeValue);
-                    if (geocoded) {
-                        lat = geocoded.lat;
-                        lng = geocoded.lng;
+                if (lat === null || lng === null) {
+                    // Try to extract coords from the place text (Google Maps links often contain @lat,lng)
+                    const extracted = extractLatLngFromPlaceString(placeValue);
+                    if (extracted) {
+                        lat = extracted.lat;
+                        lng = extracted.lng;
+                    } else {
+                        const geocoded = await geocodePlace(placeValue);
+                        if (geocoded) {
+                            lat = geocoded.lat;
+                            lng = geocoded.lng;
+                        }
                     }
                 }
 
@@ -580,7 +603,7 @@ p<!DOCTYPE html>
                 const endMin = timeToMinutes(end);
 
                 djs.push({
-                    id: `${djName}_${venue}_${fecha}_${start}`,
+                    id: `${djName}_${venue}_${fecha}_${start}_${Math.random().toString(36).slice(2,8)}`,
                     name: djName,
                     venue,
                     fecha,
@@ -650,16 +673,23 @@ p<!DOCTYPE html>
                 const badge = dj.isActive ? '<span class="badge">🔴 EN VIVO</span>' : '';
                 const icon = dj.isActive ? 'fa-headphones' : 'fa-compact-disc';
 
+                const timeParts = [];
+                if (dj.start) timeParts.push(dj.start);
+                if (dj.end) timeParts.push(dj.end);
+                const timeText = timeParts.length ? timeParts.join(' - ') : '';
+
+                const gotoMapBtn = (Number.isFinite(dj.lat) && Number.isFinite(dj.lng)) ? `<span class="goto-map" data-lat="${dj.lat}" data-lng="${dj.lng}" title="Centrar en mapa"><i class="fas fa-crosshairs"></i></span>` : '';
+
                 html += `
                     <div class="dj-item ${activeClass}" data-dj-id="${dj.id}">
                         <div class="avatar"><i class="fas ${icon}"></i></div>
                         <div class="info">
                             <div class="name">${dj.name}</div>
-                            <div class="venue"><i class="fas fa-map-pin" style="color:#888;"></i> ${dj.venue}</div>
-                            <div class="time">${dj.start} - ${dj.end}</div>
+                            <div class="venue">${dj.venue ? `<i class="fas fa-map-pin" style="color:#888;"></i> ${dj.venue}` : ''}</div>
+                            <div class="time">${timeText}</div>
                         </div>
                         ${badge}
-                        <span class="goto-map" data-lat="${dj.lat}" data-lng="${dj.lng}" title="Centrar en mapa"><i class="fas fa-crosshairs"></i></span>
+                        ${gotoMapBtn}
                     </div>
                 `;
             }
@@ -689,7 +719,7 @@ p<!DOCTYPE html>
                 filtered = djs.filter(dj => dj.isActive);
             }
 
-            for (const dj of filtered) {
+                for (const dj of filtered) {
                 const isActive = dj.isActive;
                 const iconHtml = `<i class="fas fa-compact-disc" style="font-size: 2rem; color: ${isActive ? '#00ffaa' : '#00d4ff'}; text-shadow: 0 0 30px ${isActive ? '#00ffaa88' : '#00d4ff88'};"></i>`;
                 const icon = L.divIcon({
@@ -699,26 +729,28 @@ p<!DOCTYPE html>
                     iconAnchor: [15, 15],
                     popupAnchor: [0, -20]
                 });
+                // Only render markers when we have valid coordinates
+                if (Number.isFinite(dj.lat) && Number.isFinite(dj.lng)) {
+                    const marker = L.marker([dj.lat, dj.lng], { icon: icon })
+                        .addTo(markersLayer)
+                        .bindPopup(`
+                            <strong>${dj.name}</strong><br>
+                            <span class="venue">${dj.venue}</span><br>
+                            <span class="time">${dj.start || ''} – ${dj.end || ''}</span><br>
+                            ${dj.style ? `<span style="color:#888;">${dj.style}</span>` : ''}
+                            ${isActive ? '<br><span style="color:#00ffaa; font-weight:bold;">🔴 EN VIVO AHORA</span>' : ''}
+                        `);
 
-                const marker = L.marker([dj.lat, dj.lng], { icon: icon })
-                    .addTo(markersLayer)
-                    .bindPopup(`
-                        <strong>${dj.name}</strong><br>
-                        <span class="venue">${dj.venue}</span><br>
-                        <span class="time">${dj.start} – ${dj.end}</span><br>
-                        ${dj.style ? `<span style="color:#888;">${dj.style}</span>` : ''}
-                        ${isActive ? '<br><span style="color:#00ffaa; font-weight:bold;">🔴 EN VIVO AHORA</span>' : ''}
-                    `);
-
-                if (isActive) {
-                    L.circle([dj.lat, dj.lng], {
-                        radius: 50,
-                        color: '#00ffaa',
-                        fillColor: '#00ffaa',
-                        fillOpacity: 0.2,
-                        weight: 2,
-                        opacity: 0.6
-                    }).addTo(markersLayer);
+                    if (isActive) {
+                        L.circle([dj.lat, dj.lng], {
+                            radius: 50,
+                            color: '#00ffaa',
+                            fillColor: '#00ffaa',
+                            fillOpacity: 0.2,
+                            weight: 2,
+                            opacity: 0.6
+                        }).addTo(markersLayer);
+                    }
                 }
             }
         }

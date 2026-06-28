@@ -110,27 +110,54 @@ app.get('/api/geocode', async (req, res) => {
 
     try {
         const query = String(place).trim();
+
+        // Quick parse: if the place string already includes coordinates (Google Maps @lat,lng or lat,lng), return them
+        const coordMatch = query.match(/@?(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+        if (coordMatch) {
+            const lat = parseFloat(coordMatch[1]);
+            const lng = parseFloat(coordMatch[2]);
+            return res.json({ lat, lng, displayName: query });
+        }
+
+        // First try Nominatim (OpenStreetMap)
         const searchUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=0&q=${encodeURIComponent(query)}`;
-        const response = await fetch(searchUrl, {
+        let response = await fetch(searchUrl, {
             headers: {
                 'User-Agent': 'DJRadar/1.0'
             }
         });
 
-        if (!response.ok) {
-            return res.status(502).json({ error: 'Geocoding service unavailable' });
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data[0]) {
+                return res.json({
+                    lat: parseFloat(data[0].lat),
+                    lng: parseFloat(data[0].lon),
+                    displayName: data[0].display_name
+                });
+            }
         }
 
-        const data = await response.json();
-        if (!data || !data[0]) {
-            return res.status(404).json({ error: 'No location found' });
+        // Fallback: if a Google Maps API key is provided, use Google Geocoding API
+        const googleKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_API_KEY;
+        if (googleKey) {
+            try {
+                const gUrl = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&key=${googleKey}`;
+                response = await fetch(gUrl);
+                if (response.ok) {
+                    const gData = await response.json();
+                    if (gData && gData.results && gData.results[0]) {
+                        const loc = gData.results[0].geometry.location;
+                        return res.json({ lat: loc.lat, lng: loc.lng, displayName: gData.results[0].formatted_address });
+                    }
+                }
+            } catch (e) {
+                console.error('Google geocoding failed:', e);
+            }
         }
 
-        res.json({
-            lat: parseFloat(data[0].lat),
-            lng: parseFloat(data[0].lon),
-            displayName: data[0].display_name
-        });
+        // Nothing found
+        return res.status(404).json({ error: 'No location found' });
     } catch (error) {
         console.error('Geocoding error:', error);
         res.status(502).json({ error: 'Geocoding failed' });
