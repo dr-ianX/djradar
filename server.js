@@ -23,7 +23,7 @@ function normalizeSheetUrl(rawUrl) {
 }
 
 function getSheetUrl() {
-    return normalizeSheetUrl(process.env.SHEET_URL || '');
+    return normalizeSheetUrl(process.env.SHEET_URL || process.env.SHEET_API_URL || '');
 }
 
 app.get('/', (req, res) => {

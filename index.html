@@ -347,7 +347,7 @@
 <!--  CONFIGURACIÓN DE GOOGLE SHEETS (proxy del backend)          -->
 <!-- ============================================================ -->
 <script>
-    window.SHEET_API_URL = '/api/sheet';
+    window.SHEET_API_URL = window.SHEET_API_URL || '/api/sheet';
 </script>
 
 <!-- ===== SCRIPTS PRINCIPALES ===== -->
@@ -358,7 +358,7 @@
         // ============================================================
         //  CONFIGURACIÓN (usa el proxy del backend)
         // ============================================================
-        const SHEET_API_URL = window.SHEET_API_URL || '/api/sheet';
+        const SHEET_API_URL = window.SHEET_API_URL || window.SHEET_URL || '/api/sheet';
 
         const CENTER_LAT = 22.8800;
         const CENTER_LNG = -109.9120;
@@ -477,23 +477,37 @@
         // ============================================================
         //  NORMALIZAR DJs
         // ============================================================
-        function normalizeDJs(rawData) {
-            const findCol = (possibleNames) => {
-                for (const name of possibleNames) {
-                    const found = rawData[0] ? Object.keys(rawData[0]).find(k => k.toLowerCase().includes(name.toLowerCase())) : null;
-                    if (found) return found;
-                }
-                return null;
-            };
+        function normalizeText(value) {
+            return String(value || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '');
+        }
 
-            const colDJ = findCol(['dj', 'artista', 'nombre', 'djs']) || 'DJ';
-            const colVenue = findCol(['venue', 'lugar', 'club', 'bar', 'sitio']) || 'Venue';
-            const colDate = findCol(['fecha', 'date', 'dia']) || 'Fecha';
-            const colStart = findCol(['hora_inicio', 'inicio', 'start', 'hora inicio']) || 'Hora_inicio';
-            const colEnd = findCol(['hora_fin', 'fin', 'end', 'hora fin']) || 'Hora_fin';
-            const colLat = findCol(['latitud', 'lat', 'latitud']) || 'Latitud';
-            const colLng = findCol(['longitud', 'lng', 'longitude', 'lon']) || 'Longitud';
-            const colStyle = findCol(['estilo', 'genero', 'style', 'género']) || 'Estilo';
+        function findCol(headers, possibleNames, fallback = '') {
+            if (!headers || !headers.length) return fallback;
+            const aliases = possibleNames.map(name => normalizeText(name));
+            for (const header of headers) {
+                const normalized = normalizeText(header);
+                if (!normalized) continue;
+                const matched = aliases.some(alias => normalized.includes(alias) || alias.includes(normalized));
+                if (matched) return header;
+            }
+            return fallback;
+        }
+
+        function normalizeDJs(rawData) {
+            const headers = rawData[0] ? Object.keys(rawData[0]) : [];
+
+            const colDJ = findCol(headers, ['dj', 'name', 'artist', 'artista', 'nombre', 'djs', 'djname', 'artistname'], 'DJ');
+            const colVenue = findCol(headers, ['venue', 'lugar', 'club', 'bar', 'sitio', 'location'], 'Venue');
+            const colDate = findCol(headers, ['fecha', 'date', 'dia', 'day'], 'Fecha');
+            const colStart = findCol(headers, ['hora_inicio', 'inicio', 'start', 'hora inicio', 'horainicio', 'time start'], 'Hora_inicio');
+            const colEnd = findCol(headers, ['hora_fin', 'fin', 'end', 'hora fin', 'horafin', 'time end'], 'Hora_fin');
+            const colLat = findCol(headers, ['latitud', 'lat', 'latitude'], 'Latitud');
+            const colLng = findCol(headers, ['longitud', 'lng', 'longitude', 'lon', 'long'], 'Longitud');
+            const colStyle = findCol(headers, ['estilo', 'genero', 'style', 'genre', 'genero musical'], 'Estilo');
 
             const djs = [];
             for (const row of rawData) {
@@ -502,11 +516,13 @@
                 const fecha = row[colDate] || '';
                 const start = row[colStart] || '';
                 const end = row[colEnd] || '';
-                const lat = parseFloat(row[colLat]) || null;
-                const lng = parseFloat(row[colLng]) || null;
+                const parsedLat = parseFloat(row[colLat]);
+                const parsedLng = parseFloat(row[colLng]);
+                const lat = Number.isFinite(parsedLat) ? parsedLat : CENTER_LAT;
+                const lng = Number.isFinite(parsedLng) ? parsedLng : CENTER_LNG;
                 const style = row[colStyle] || '';
 
-                if (!djName || !venue || !fecha || !start || !end || lat === null || lng === null) continue;
+                if (!djName && !venue) continue;
 
                 let dateObj = null;
                 try {
@@ -698,6 +714,11 @@
                 let djs = normalizeDJs(raw);
                 djs = updateActiveStatus(djs);
                 allDJs = djs;
+
+                if (!djs.length) {
+                    document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#ffaa00; padding:20px;">No se encontraron filas válidas. Revisa los encabezados y los datos de la hoja.</div>';
+                    return;
+                }
 
                 renderDJList(allDJs, currentFilter);
                 renderMarkers(allDJs);
