@@ -344,26 +344,14 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <!-- ============================================================ -->
-<!--  INYECCIÓN DE VARIABLE DE ENTORNO (Render)                    -->
+<!--  CONFIGURACIÓN DE GOOGLE SHEETS                                -->
 <!-- ============================================================ -->
 <script>
-    // ================================================================
-    //  >>>>>>>  REEMPLAZA ESTE VALOR CON LA URL DE TU HOJA  <<<<<<<<
-    //  O usa la variable de entorno en Render (ver README)
-    // ================================================================
-    //  Si estás en Render, define una variable de entorno llamada
-    //  SHEET_URL con el enlace público CSV de tu hoja.
-    //  Durante el build, el comando 'sed' reemplazará __SHEET_URL__
-    //  por su valor.
-    // ================================================================
-    window.SHEET_URL = '__SHEET_URL__';   // <-- Placeholder para reemplazar
-    // Si por alguna razón el placeholder no se reemplaza, mostrar error
-    if (window.SHEET_URL === '__SHEET_URL__') {
-        console.error('ERROR: SHEET_URL no configurada. Configura la variable de entorno SHEET_URL en Render.');
-        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0a0a;color:#ff5555;font-family:sans-serif;text-align:center;padding:20px;"><div><h1>⚠️ Error de Configuración</h1><p>La variable de entorno SHEET_URL no está configurada en Render.</p><p>Por favor configura esta variable con la URL de tu Google Sheet CSV.</p></div></div>';
-        throw new Error('SHEET_URL no configurada');
-    }
-    console.log('🔗 SHEET_URL cargada:', window.SHEET_URL);
+    // PON AQUÍ TU URL DE GOOGLE SHEETS (formato CSV export)
+    // Ejemplo: https://docs.google.com/spreadsheets/d/TU_ID/export?format=csv
+    window.SHEET_URL = 'https://docs.google.com/spreadsheets/d/TU_ID_AQUI/export?format=csv';
+    
+    console.log('🔗 SHEET_URL configurada:', window.SHEET_URL);
 </script>
 
 <!-- ===== SCRIPTS PRINCIPALES ===== -->
@@ -719,7 +707,8 @@
                 renderMarkers(allDJs);
             } catch (error) {
                 console.error('Error cargando datos:', error);
-                document.getElementById('dj-list-items').innerHTML = `<div style="text-align:center; color:#ff5555; padding:20px;">Error al cargar: ${error.message}</div>`;
+                document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#ffaa00; padding:20px;">⚠️ No se pudieron cargar los datos. Verifica la URL de Google Sheets.</div>';
+                // No romper la página, solo mostrar mensaje de error
             }
         }
 

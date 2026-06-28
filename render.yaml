@@ -2,5 +2,4 @@ services:
   - type: web
     name: djradar-los-cabos
     env: static
-    buildCommand: npm run build
     staticPublishPath: .
