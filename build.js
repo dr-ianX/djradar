@@ -30,9 +30,9 @@ if (!html.includes('__SHEET_URL__')) {
     console.warn('This might indicate the file was already processed or the placeholder was removed.');
 }
 
-// Reemplazar el placeholder con la URL real
+// Reemplazar el placeholder con la URL real (todas las ocurrencias)
 console.log('Replacing placeholder with actual SHEET_URL...');
-html = html.replace('__SHEET_URL__', sheetUrl);
+html = html.replaceAll('__SHEET_URL__', sheetUrl);
 
 // Verificar que el reemplazo se hizo
 if (html.includes('__SHEET_URL__')) {
