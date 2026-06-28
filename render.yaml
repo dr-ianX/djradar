@@ -7,6 +7,3 @@ services:
     envVars:
       - key: SHEET_URL
         sync: false
-    routes:
-      - src: /*
-        dest: /index.html
