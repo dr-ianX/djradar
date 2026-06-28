@@ -671,7 +671,7 @@
             try {
                 document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#666; padding:20px;">Cargando...</div>';
 
-                const response = await fetch('/api/sheet');
+                const response = await fetch('/sheet-data.txt?t=' + Date.now());
                 if (!response.ok) throw new Error('Error al obtener los datos');
                 const csvText = await response.text();
 
