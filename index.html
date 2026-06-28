@@ -1,4 +1,4 @@
-p<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
@@ -130,6 +130,39 @@ p<!DOCTYPE html>
             color: #ff00aa;
         }
 
+        .control-row {
+            display:flex;
+            flex-wrap:wrap;
+            gap:10px;
+            margin-top:10px;
+        }
+        .search-box {
+            flex:1;
+            min-width:180px;
+            padding:10px 12px;
+            border-radius:12px;
+            border:1px solid #222;
+            background:#0b0b0b;
+            color:#e8eef6;
+        }
+        .status-panel {
+            display:flex;
+            flex-wrap:wrap;
+            gap:8px;
+            align-items:center;
+            font-size:0.82rem;
+            color:#99aabb;
+        }
+        .status-panel .pill {
+            background:#0b0b0b;
+            border:1px solid #222;
+            border-radius:999px;
+            padding:6px 10px;
+            display:inline-flex;
+            align-items:center;
+            gap:6px;
+        }
+
         .dj-list {
             flex: 1;
             display: flex;
@@ -195,6 +228,20 @@ p<!DOCTYPE html>
             color: #888;
             font-family: 'Orbitron', monospace;
         }
+        .dj-item .style-label {
+            margin-top: 6px;
+            font-size: 0.75rem;
+            color: #a0c2ff;
+            letter-spacing: 0.4px;
+        }
+        .dj-item .detail-tag {
+            margin-top: 4px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.72rem;
+            color: #ffb3b3;
+        }
         .dj-item .badge {
             font-size: 0.65rem;
             background: #00d4ff22;
@@ -210,12 +257,31 @@ p<!DOCTYPE html>
             border-color: #00ffaa88;
             color: #00ffaa;
         }
+        .dj-item {
+            cursor: pointer;
+        }
+        .dj-item:hover {
+            transform: translateX(1px);
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.12);
+        }
         .dj-item .goto-map {
             color: #666;
             cursor: pointer;
             transition: color 0.2s;
         }
         .dj-item .goto-map:hover { color: #00d4ff; }
+        .legend-panel {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .legend-panel .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #c9d8ff;
+        }
 
         .footer {
             border-top: 1px solid #222;
@@ -319,9 +385,33 @@ p<!DOCTYPE html>
             <span><i class="fas fa-sync" id="refresh-btn" title="Actualizar datos"></i></span>
         </div>
 
+        <div class="control-row">
+            <div class="status-panel">
+                <span class="pill"><strong id="dj-count">0</strong> DJs</span>
+                <span class="pill"><strong id="active-count">0</strong> En vivo</span>
+                <span class="pill"><strong id="upcoming-count">0</strong> Próximos</span>
+            </div>
+            <input id="search-input" class="search-box" placeholder="Buscar DJ, venue, estilo...">
+            <button id="clear-search" class="pill" title="Limpiar búsqueda">Limpiar</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div class="legend-panel">
+                <span class="pill"><i class="fas fa-headphones"></i> En vivo</span>
+                <span class="pill"><i class="fas fa-clock"></i> Próximo</span>
+                <span class="pill"><i class="fas fa-map-marker-alt"></i> Con coordenadas</span>
+            </div>
+            <span id="last-updated" class="muted" style="font-size:0.85rem">Última carga: --</span>
+        </div>
+
         <div class="filter-group">
             <button class="active" data-filter="all">Todos</button>
             <button data-filter="now">🔴 Ahora</button>
+            <button data-filter="next">⏳ Próximos</button>
+        </div>
+        <div class="legend-panel">
+            <span class="pill"><i class="fas fa-headphones"></i> En vivo</span>
+            <span class="pill"><i class="fas fa-clock"></i> Próximo</span>
+            <span class="pill"><i class="fas fa-map-marker-alt"></i> Coordenadas disponibles</span>
         </div>
 
         <div class="dj-list" id="dj-list-container">
@@ -373,6 +463,7 @@ p<!DOCTYPE html>
         let currentFilter = 'all';
         let map = null;
         let markersLayer = null;
+        let markerById = new Map();
 
         // ============================================================
         //  REFERENCIAS DOM
@@ -382,6 +473,11 @@ p<!DOCTYPE html>
         const djListContainer = document.getElementById('dj-list-items');
         const filterButtons = document.querySelectorAll('.filter-group button');
         const sheetLink = document.getElementById('sheet-link');
+        const searchInput = document.getElementById('search-input');
+        const clearSearchBtn = document.getElementById('clear-search');
+        const djCountEl = document.getElementById('dj-count');
+        const activeCountEl = document.getElementById('active-count');
+        const upcomingCountEl = document.getElementById('upcoming-count');
 
         // Enlace a la hoja (para editar) – sin exponer la URL en el frontend
         sheetLink.href = '/api/sheet/edit';
@@ -485,6 +581,17 @@ p<!DOCTYPE html>
                 .replace(/[\u0300-\u036f]/g, '')
                 .toLowerCase()
                 .replace(/[^a-z0-9]+/g, '');
+        }
+
+        function getColorForName(name) {
+            const text = normalizeText(name || 'dj');
+            let hash = 0;
+            for (let i = 0; i < text.length; i++) {
+                hash = ((hash << 5) - hash) + text.charCodeAt(i);
+                hash |= 0;
+            }
+            const hue = Math.abs(hash) % 360;
+            return `hsl(${hue}, 72%, 56%)`;
         }
 
         function findCol(headers, possibleNames, fallback = '') {
@@ -624,6 +731,7 @@ p<!DOCTYPE html>
                     lat,
                     lng,
                     style,
+                    color: getColorForName(djName || venue || style || 'dj'),
                     isActive: false
                 });
             }
@@ -661,15 +769,51 @@ p<!DOCTYPE html>
             return djs;
         }
 
+        function isUpcomingDJ(dj) {
+            if (!dj.dateObj || dj.startMin === null) return false;
+            const now = new Date();
+            const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            if (dj.dateObj.getFullYear() !== currentDate.getFullYear() || dj.dateObj.getMonth() !== currentDate.getMonth() || dj.dateObj.getDate() !== currentDate.getDate()) {
+                return false;
+            }
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+            return dj.startMin > currentMinutes;
+        }
+
+        function getSearchTerm() {
+            return (searchInput.value || '').trim().toLowerCase();
+        }
+
+        function filterDJs(djs) {
+            const search = getSearchTerm();
+            return djs.filter(dj => {
+                if (search) {
+                    const text = [dj.name, dj.venue, dj.style, dj.fecha, dj.start, dj.end].join(' ').toLowerCase();
+                    if (!text.includes(search)) return false;
+                }
+                if (currentFilter === 'now') return dj.isActive;
+                if (currentFilter === 'next') return !dj.isActive && isUpcomingDJ(dj);
+                return true;
+            });
+        }
+
+        function updateSummaryCounts(djs) {
+            const total = djs.length;
+            const active = djs.filter(dj => dj.isActive).length;
+            const upcoming = djs.filter(dj => !dj.isActive && isUpcomingDJ(dj)).length;
+            djCountEl.textContent = total;
+            activeCountEl.textContent = active;
+            upcomingCountEl.textContent = upcoming;
+        }
+
         // ============================================================
         //  RENDER LISTA
         // ============================================================
         function renderDJList(djs, filter) {
             const container = document.getElementById('dj-list-items');
-            let filtered = djs;
-            if (filter === 'now') {
-                filtered = djs.filter(dj => dj.isActive);
-            }
+            currentFilter = filter;
+            const filtered = filterDJs(djs);
+            updateSummaryCounts(djs);
 
             if (filtered.length === 0) {
                 container.innerHTML = `<div style="text-align:center; color:#555; padding:20px;">No hay DJs para mostrar</div>`;
@@ -679,23 +823,29 @@ p<!DOCTYPE html>
             let html = '';
             for (const dj of filtered) {
                 const activeClass = dj.isActive ? 'active' : '';
-                const badge = dj.isActive ? '<span class="badge">🔴 EN VIVO</span>' : '';
+                const upcomingLabel = (!dj.isActive && isUpcomingDJ(dj)) ? '<span class="badge">⏳ PRÓXIMO</span>' : '';
+                const badge = dj.isActive ? '<span class="badge">🔴 EN VIVO</span>' : upcomingLabel;
                 const icon = dj.isActive ? 'fa-headphones' : 'fa-compact-disc';
+                const avatarStyle = `background:${dj.color};box-shadow:0 0 0 2px rgba(255,255,255,0.12);`;
 
                 const timeParts = [];
                 if (dj.start) timeParts.push(dj.start);
                 if (dj.end) timeParts.push(dj.end);
                 const timeText = timeParts.length ? timeParts.join(' - ') : '';
+                const styleText = dj.style ? `<div class="style-label">${dj.style}</div>` : '';
+                const noCoordsHint = (!Number.isFinite(dj.lat) || !Number.isFinite(dj.lng)) ? `<div class="detail-tag"><i class="fas fa-exclamation-circle"></i> Sin coordenadas exactas</div>` : '';
 
                 const gotoMapBtn = (Number.isFinite(dj.lat) && Number.isFinite(dj.lng)) ? `<span class="goto-map" data-lat="${dj.lat}" data-lng="${dj.lng}" title="Centrar en mapa"><i class="fas fa-crosshairs"></i></span>` : '';
 
                 html += `
                     <div class="dj-item ${activeClass}" data-dj-id="${dj.id}">
-                        <div class="avatar"><i class="fas ${icon}"></i></div>
+                        <div class="avatar" style="${avatarStyle}"><i class="fas ${icon}" style="color:#fff"></i></div>
                         <div class="info">
                             <div class="name">${dj.name}</div>
                             <div class="venue">${dj.venue ? `<i class="fas fa-map-pin" style="color:#888;"></i> ${dj.venue}` : ''}</div>
                             <div class="time">${timeText}</div>
+                            ${styleText}
+                            ${noCoordsHint}
                         </div>
                         ${badge}
                         ${gotoMapBtn}
@@ -714,6 +864,17 @@ p<!DOCTYPE html>
                     }
                 });
             });
+
+            container.querySelectorAll('.dj-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    const id = item.dataset.djId;
+                    const marker = markerById.get(id);
+                    if (marker) {
+                        map.setView(marker.getLatLng(), 15, { animate: true });
+                        marker.openPopup();
+                    }
+                });
+            });
         }
 
         // ============================================================
@@ -722,15 +883,20 @@ p<!DOCTYPE html>
         function renderMarkers(djs) {
             if (!markersLayer) return;
             markersLayer.clearLayers();
+            markerById.clear();
+            const bounds = L.latLngBounds();
 
-            let filtered = djs;
-            if (currentFilter === 'now') {
-                filtered = djs.filter(dj => dj.isActive);
-            }
+            const filtered = filterDJs(djs);
 
-                for (const dj of filtered) {
+            for (const dj of filtered) {
                 const isActive = dj.isActive;
-                const iconHtml = `<i class="fas fa-compact-disc" style="font-size: 2rem; color: ${isActive ? '#00ffaa' : '#00d4ff'}; text-shadow: 0 0 30px ${isActive ? '#00ffaa88' : '#00d4ff88'};"></i>`;
+                const isUpcoming = !dj.isActive && isUpcomingDJ(dj);
+                const iconName = isActive ? 'fa-headphones' : (isUpcoming ? 'fa-music' : 'fa-compact-disc');
+                const iconHtml = `
+                    <div style="width:30px;height:30px;border-radius:50%;background:${dj.color};display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px ${dj.color}77;border:2px solid ${isActive ? '#ffffff' : 'rgba(255,255,255,0.25)'};">
+                        <i class="fas ${iconName}" style="color:#fff;font-size:1rem;"></i>
+                    </div>
+                `;
                 const icon = L.divIcon({
                     html: iconHtml,
                     className: 'custom-marker' + (isActive ? ' active' : ''),
@@ -760,6 +926,15 @@ p<!DOCTYPE html>
                             opacity: 0.6
                         }).addTo(markersLayer);
                     }
+                    markerById.set(dj.id, marker);
+                    bounds.extend(marker.getLatLng());
+                }
+            }
+            if (bounds.isValid() && map) {
+                if (filtered.length === 1) {
+                    map.setView(bounds.getCenter(), 14);
+                } else {
+                    map.fitBounds(bounds.pad(0.18), { animate: true, maxZoom: 15 });
                 }
             }
         }
@@ -801,7 +976,9 @@ p<!DOCTYPE html>
 
                 renderDJList(allDJs, currentFilter);
                 renderMarkers(allDJs);
+                document.getElementById('last-updated').textContent = 'Última carga: ' + new Date().toLocaleTimeString();
             } catch (error) {
+                document.getElementById('last-updated').textContent = 'Última carga: error';
                 console.error('Error cargando datos:', error);
                 const message = error && error.message ? error.message : 'No se pudieron cargar los datos. Verifica la URL de Google Sheets.';
                 document.getElementById('dj-list-items').innerHTML = `<div style="text-align:center; color:#ffaa00; padding:20px;">⚠️ ${message}</div>`;
@@ -830,6 +1007,19 @@ p<!DOCTYPE html>
             loadData();
 
             refreshBtn.addEventListener('click', loadData);
+            searchInput.addEventListener('input', () => {
+                if (allDJs.length) {
+                    renderDJList(allDJs, currentFilter);
+                    renderMarkers(allDJs);
+                }
+            });
+            clearSearchBtn.addEventListener('click', () => {
+                searchInput.value = '';
+                if (allDJs.length) {
+                    renderDJList(allDJs, currentFilter);
+                    renderMarkers(allDJs);
+                }
+            });
 
             filterButtons.forEach(btn => {
                 btn.addEventListener('click', function() {

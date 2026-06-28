@@ -310,6 +310,44 @@ app.post('/api/admin/approveSubmission', requireAdmin, (req, res) => {
     }
 });
 
+app.post('/api/admin/approveAllSubmissions', requireAdmin, (req, res) => {
+    const submissions = readSubmissions();
+    if (!submissions.length) return res.json({ ok: true, approved: 0 });
+
+    const overrides = readOverrides();
+    let approvedCount = 0;
+    for (const sub of submissions) {
+        const overrideId = makeIdForRow(sub.dj, sub.venue, sub.date, sub.start);
+        overrides[overrideId] = {
+            DJ: sub.dj,
+            Venue: sub.venue,
+            Fecha: sub.date,
+            Inicio: sub.start,
+            estado: 'aprobado'
+        };
+        approvedCount += 1;
+    }
+
+    try {
+        writeOverrides(overrides);
+        writeSubmissions([]);
+        return res.json({ ok: true, approved: approvedCount });
+    } catch (e) {
+        console.error('Approve all failed:', e);
+        return res.status(500).json({ error: 'Failed to approve all submissions' });
+    }
+});
+
+app.delete('/api/admin/submissions', requireAdmin, (req, res) => {
+    try {
+        writeSubmissions([]);
+        return res.json({ ok: true, deleted: true });
+    } catch (e) {
+        console.error('Delete all submissions failed:', e);
+        return res.status(500).json({ error: 'Failed to delete submissions' });
+    }
+});
+
 app.get('/api/admin/overrides', requireAdmin, (req, res) => {
     const data = readOverrides();
     res.json(data);

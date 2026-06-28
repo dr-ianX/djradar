@@ -13,7 +13,14 @@
   const viewSubmissionsBtn = document.getElementById('view-submissions');
   const tbody = document.getElementById('tbody');
   const searchInput = document.getElementById('search');
+  const adminSummary = document.getElementById('admin-summary');
+  const adminFilterSummary = document.getElementById('admin-filter-summary');
+  const submissionActions = document.getElementById('submission-actions');
+  const bulkApproveBtn = document.getElementById('bulk-approve');
+  const bulkDeleteBtn = document.getElementById('bulk-delete');
   let currentView = 'sheet';
+  let currentRows = [];
+  let currentSubmissions = [];
 
   function getToken(){ return localStorage.getItem('dj_admin_token') || ''; }
   function setToken(t){ localStorage.setItem('dj_admin_token', t); }
@@ -42,10 +49,15 @@
 
   async function loadData(){
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">Cargando...</td></tr>';
+    adminSummary.textContent = 'Cargando...';
+    adminFilterSummary.textContent = '';
     try{
       if (currentView === 'submissions') {
         const submissions = await fetchSubmissions();
+        currentSubmissions = submissions;
         renderSubmissions(submissions);
+        adminSummary.textContent = `Submissions: ${submissions.length}`;
+        setSubmissionActionsVisibility(true);
         return;
       }
 
@@ -55,8 +67,11 @@
       const raw = parseCSV(csv);
       const overrides = await fetchOverrides();
       const rows = mergeOverrides(raw, overrides);
+      currentRows = rows;
       renderTable(rows);
-    }catch(e){ tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#ffbb88;padding:18px">'+(e.message||e)+'</td></tr>'; }
+      adminSummary.textContent = `Registros en hoja: ${rows.length} | Overrides guardados: ${Object.keys(overrides).length}`;
+      setSubmissionActionsVisibility(false);
+    }catch(e){ tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#ffbb88;padding:18px">'+(e.message||e)+'</td></tr>'; adminSummary.textContent = 'Error cargando datos'; setSubmissionActionsVisibility(false); }
   }
 
   async function fetchOverrides(){
@@ -97,6 +112,7 @@
       if (!q) return true;
       return Object.values(r).some(v=> String(v||'').toLowerCase().includes(q));
     });
+    adminFilterSummary.textContent = `Mostrando ${filtered.length} de ${rows.length} filas`;
     if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">No hay resultados</td></tr>'; return; }
     tbody.innerHTML = '';
     for (const r of filtered){
@@ -129,6 +145,7 @@
       if (!q) return true;
       return Object.values(r).some(v=> String(v||'').toLowerCase().includes(q));
     });
+    adminFilterSummary.textContent = `Mostrando ${filtered.length} de ${rows.length} submissions`;
     if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">No hay submissions</td></tr>'; return; }
     tbody.innerHTML = '';
     for (const r of filtered){
@@ -207,13 +224,51 @@
   viewSheetBtn.addEventListener('click', ()=> setView('sheet'));
   viewSubmissionsBtn.addEventListener('click', ()=> setView('submissions'));
   refreshBtn.addEventListener('click', loadData);
-  searchInput.addEventListener('input', ()=> loadData());
+  searchInput.addEventListener('input', refreshView);
+  bulkApproveBtn.addEventListener('click', approveAllSubmissions);
+  bulkDeleteBtn.addEventListener('click', deleteAllSubmissions);
 
   function setView(view){
     currentView = view;
     viewSheetBtn.style.opacity = view === 'sheet' ? '1' : '0.6';
     viewSubmissionsBtn.style.opacity = view === 'submissions' ? '1' : '0.6';
     loadData();
+  }
+
+  function refreshView(){
+    if (currentView === 'submissions') {
+      renderSubmissions(currentSubmissions);
+      setSubmissionActionsVisibility(true);
+    } else {
+      renderTable(currentRows);
+      setSubmissionActionsVisibility(false);
+    }
+  }
+
+  function setSubmissionActionsVisibility(visible) {
+    submissionActions.style.display = visible ? 'flex' : 'none';
+  }
+
+  async function approveAllSubmissions(){
+    if (!confirm('Aprobar todas las submissions actualmente visibles?')) return;
+    const token = getToken(); if (!token){ alert('Guarda token'); return; }
+    try{
+      const r = await fetch('/api/admin/approveAllSubmissions', { method: 'POST', headers: { 'x-admin-token': token } });
+      if (!r.ok) throw new Error('Error aprobando todas');
+      alert('Todas las submissions fueron aprobadas');
+      loadData();
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function deleteAllSubmissions(){
+    if (!confirm('Eliminar todas las submissions? Esta acción no se puede deshacer.')) return;
+    const token = getToken(); if (!token){ alert('Guarda token'); return; }
+    try{
+      const r = await fetch('/api/admin/submissions', { method: 'DELETE', headers: { 'x-admin-token': token } });
+      if (!r.ok) throw new Error('Error eliminando todas');
+      alert('Todas las submissions fueron eliminadas');
+      loadData();
+    }catch(e){ alert('Error: '+e.message); }
   }
 
   setView('sheet');
