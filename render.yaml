@@ -4,6 +4,3 @@ services:
     env: static
     buildCommand: npm run build
     staticPublishPath: .
-    envVars:
-      - key: SHEET_URL
-        sync: false
