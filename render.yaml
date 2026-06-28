@@ -1,8 +1,0 @@
-services:
-  - type: web
-    name: djradar-los-cabos
-    env: node
-    startCommand: npm start
-    envVars:
-      - key: SHEET_URL
-        sync: false
