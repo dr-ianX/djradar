@@ -671,16 +671,44 @@
             try {
                 document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#666; padding:20px;">Cargando...</div>';
 
-                const response = await fetch('/data.json');
+                const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTa3jU_Bw1W7ygPGtIAvjxoAKzt7x1cHAlXxcn18YNVIMjD4XA-yQfBUWVty7bm4SinwwUiTDaXnAyh/pub?output=csv';
+                const response = await fetch(sheetUrl);
                 if (!response.ok) throw new Error('Error al obtener los datos');
-                const raw = await response.json();
+                const csvText = await response.text();
 
-                if (!Array.isArray(raw) || raw.length === 0) {
+                const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+                if (lines.length < 2) {
                     document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#555; padding:20px;">No se encontraron datos.</div>';
                     return;
                 }
 
-                let djs = await normalizeDJs(raw);
+                const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, '').trim());
+                const raw = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',');
+                    const row = {};
+                    headers.forEach((header, index) => {
+                        row[header] = (values[index] || '').replace(/^"|"$/g, '').trim();
+                    });
+                    raw.push(row);
+                }
+
+                const approvedRows = raw.filter(row => {
+                    const status = (row.Estado || row.status || '').toLowerCase();
+                    return status === 'aprobado' || status === 'approved' || status === 'active';
+                });
+
+                if (!approvedRows.length) {
+                    document.getElementById('dj-list-items').innerHTML = `
+                        <div style="text-align:center; color:#8aa0b1; padding:24px 12px; border:1px dashed #2a3b4f; border-radius:12px; background:#101820;">
+                            <div style="font-size:1.1rem; margin-bottom:6px; color:#e8f3ff;">No hay DJs aprobados aún</div>
+                            <div style="font-size:0.9rem; color:#7d91a8;">Cuando apruebes una solicitud en la hoja, aparecerá aquí automáticamente.</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let djs = await normalizeDJs(approvedRows);
                 djs = updateActiveStatus(djs);
                 allDJs = djs;
 
