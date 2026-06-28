@@ -8,15 +8,31 @@ const PORT = process.env.PORT || 3000;
 function normalizeSheetUrl(rawUrl) {
     if (!rawUrl) return '';
 
-    const url = rawUrl.trim();
-    if (url.includes('docs.google.com/spreadsheets')) {
-        const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-        if (match) {
-            const sheetId = match[1];
-            const gidMatch = url.match(/[?&]gid=(\d+)/);
-            const gid = gidMatch ? `&gid=${gidMatch[1]}` : '';
-            return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv${gid}`;
-        }
+    const url = String(rawUrl).trim();
+
+    // If it's already a CSV export URL
+    if (url.includes('/export?format=csv')) return url;
+
+    // Google "Publicar en la web" may return a URL like:
+    // /spreadsheets/d/e/<publicId>/pub?output=csv
+    // Support it by returning it as-is.
+    if (url.includes('pub?output=csv')) return url;
+
+
+    // Accept both:
+    //  - https://docs.google.com/spreadsheets/d/<sheetId>/...
+    //  - https://sheets.google.com/<sheetId>/...
+    // and normalize to:
+    //  https://docs.google.com/spreadsheets/d/<sheetId>/export?format=csv&gid=...
+    const match = url.match(
+        /(?:docs\.google\.com\/spreadsheets\/d|sheets\.google\.com)\/?(?:d\/)?([a-zA-Z0-9-_]+)/
+    );
+
+    if (match) {
+        const sheetId = match[1];
+        const gidMatch = url.match(/[?&]gid=(\d+)/);
+        const gid = gidMatch ? `&gid=${gidMatch[1]}` : '';
+        return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv${gid}`;
     }
 
     return url;
@@ -33,7 +49,7 @@ app.get('/', (req, res) => {
         console.error('WARNING: SHEET_URL environment variable not set');
     }
 
-    let html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+    const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
     res.type('html').send(html);
 });
 
@@ -138,3 +154,4 @@ if (require.main === module) {
 }
 
 module.exports = { app, startServer };
+
