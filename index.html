@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DJ Radar · Los Cabos</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+    <style>
+        /* ===== RESET & GLOBAL ===== */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Rajdhani', sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ===== LAYOUT ===== */
+        #app {
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Sidebar */
+        #sidebar {
+            width: 340px;
+            min-width: 340px;
+            background: rgba(10, 10, 10, 0.92);
+            backdrop-filter: blur(8px);
+            border-right: 2px solid #00d4ff33;
+            padding: 20px 16px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            box-shadow: 4px 0 30px rgba(0, 0, 0, 0.8);
+        }
+        #sidebar::-webkit-scrollbar { width: 4px; }
+        #sidebar::-webkit-scrollbar-thumb { background: #00d4ff; border-radius: 4px; }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #00d4ff44;
+            padding-bottom: 12px;
+        }
+        .brand i {
+            font-size: 2.2rem;
+            color: #00d4ff;
+            text-shadow: 0 0 20px #00d4ff88;
+        }
+        .brand h1 {
+            font-family: 'Orbitron', monospace;
+            font-weight: 900;
+            font-size: 1.6rem;
+            letter-spacing: 2px;
+            background: linear-gradient(135deg, #00d4ff, #ff00aa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .brand small {
+            font-size: 0.75rem;
+            color: #aaa;
+            margin-left: auto;
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .clock-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a1a;
+            padding: 8px 14px;
+            border-radius: 40px;
+            border: 1px solid #333;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.9rem;
+            color: #00d4ff;
+        }
+        .clock-bar .fa-sync {
+            cursor: pointer;
+            transition: transform 0.4s;
+        }
+        .clock-bar .fa-sync:hover {
+            transform: rotate(180deg);
+            color: #ff00aa;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .filter-group button {
+            flex: 1;
+            padding: 8px 0;
+            background: transparent;
+            border: 1px solid #444;
+            border-radius: 30px;
+            color: #ccc;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            letter-spacing: 1px;
+        }
+        .filter-group button.active {
+            border-color: #00d4ff;
+            color: #00d4ff;
+            background: #00d4ff22;
+            box-shadow: 0 0 20px #00d4ff44;
+        }
+        .filter-group button:hover {
+            border-color: #ff00aa;
+            color: #ff00aa;
+        }
+
+        .dj-list {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .dj-list .list-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #888;
+            border-bottom: 1px solid #222;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+        }
+
+        .dj-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            background: #151515;
+            border-radius: 12px;
+            border-left: 4px solid #333;
+            transition: all 0.2s;
+            cursor: default;
+        }
+        .dj-item.active {
+            border-left-color: #00ffaa;
+            background: #00ffaa0d;
+            box-shadow: 0 0 20px #00ffaa22;
+        }
+        .dj-item .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #00d4ff22;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: #00d4ff;
+            border: 1px solid #00d4ff44;
+        }
+        .dj-item.active .avatar {
+            border-color: #00ffaa;
+            color: #00ffaa;
+            box-shadow: 0 0 20px #00ffaa66;
+        }
+        .dj-item .info { flex: 1; }
+        .dj-item .info .name {
+            font-weight: 700;
+            font-size: 1rem;
+            color: #f0f0f0;
+        }
+        .dj-item .info .venue {
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        .dj-item .info .time {
+            font-size: 0.75rem;
+            color: #888;
+            font-family: 'Orbitron', monospace;
+        }
+        .dj-item .badge {
+            font-size: 0.65rem;
+            background: #00d4ff22;
+            padding: 2px 10px;
+            border-radius: 20px;
+            border: 1px solid #00d4ff44;
+            color: #00d4ff;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .dj-item.active .badge {
+            background: #00ffaa22;
+            border-color: #00ffaa88;
+            color: #00ffaa;
+        }
+        .dj-item .goto-map {
+            color: #666;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .dj-item .goto-map:hover { color: #00d4ff; }
+
+        .footer {
+            border-top: 1px solid #222;
+            padding-top: 12px;
+            font-size: 0.7rem;
+            color: #555;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+        .footer a {
+            color: #00d4ff;
+            text-decoration: none;
+        }
+
+        /* ===== MAPA ===== */
+        #map {
+            flex: 1;
+            height: 100vh;
+            background: #0a0a0a;
+        }
+
+        .custom-marker {
+            background: none;
+            border: none;
+        }
+        .custom-marker i {
+            font-size: 2rem;
+            color: #00d4ff;
+            text-shadow: 0 0 30px #00d4ffaa;
+            transition: all 0.3s;
+        }
+        .custom-marker.active i {
+            color: #00ffaa;
+            text-shadow: 0 0 40px #00ffaa, 0 0 80px #00ffaa66;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: #1a1a1a;
+            color: #e0e0e0;
+            border-radius: 12px;
+            border: 1px solid #00d4ff55;
+            box-shadow: 0 0 30px #000000aa;
+        }
+        .leaflet-popup-content {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            min-width: 200px;
+        }
+        .leaflet-popup-content strong { color: #00d4ff; }
+        .leaflet-popup-content .venue { color: #aaa; }
+        .leaflet-popup-content .time {
+            font-family: 'Orbitron', monospace;
+            color: #ff00aa;
+        }
+        .leaflet-popup-tip {
+            background: #1a1a1a;
+            border: 1px solid #00d4ff55;
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            #app {
+                flex-direction: column;
+            }
+            #sidebar {
+                width: 100%;
+                min-width: unset;
+                height: 45vh;
+                border-right: none;
+                border-bottom: 2px solid #00d4ff33;
+                padding: 12px;
+            }
+            #map {
+                height: 55vh;
+            }
+            .brand h1 { font-size: 1.2rem; }
+            .clock-bar { font-size: 0.7rem; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+        <div class="brand">
+            <i class="fas fa-satellite-dish"></i>
+            <h1>DJ Radar</h1>
+            <small>Los Cabos</small>
+        </div>
+
+        <div class="clock-bar">
+            <span><i class="far fa-clock"></i> <span id="live-clock">--:--:--</span></span>
+            <span><i class="fas fa-sync" id="refresh-btn" title="Actualizar datos"></i></span>
+        </div>
+
+        <div class="filter-group">
+            <button class="active" data-filter="all">Todos</button>
+            <button data-filter="now">🔴 Ahora</button>
+        </div>
+
+        <div class="dj-list" id="dj-list-container">
+            <div class="list-title">DJs en cartel</div>
+            <div id="dj-list-items">
+                <div style="text-align:center; color:#666; padding:20px;">Cargando...</div>
+            </div>
+        </div>
+
+        <div class="footer">
+            Datos en tiempo real · <a href="#" id="sheet-link" target="_blank">Actualizar hoja</a>
+        </div>
+    </div>
+
+    <!-- MAPA -->
+    <div id="map"></div>
+</div>
+
+<!-- ===== LEAFETL JS ===== -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- ============================================================ -->
+<!--  INYECCIÓN DE VARIABLE DE ENTORNO (Render)                    -->
+<!-- ============================================================ -->
+<script>
+    // ================================================================
+    //  >>>>>>>  REEMPLAZA ESTE VALOR CON LA URL DE TU HOJA  <<<<<<<<
+    //  O usa la variable de entorno en Render (ver README)
+    // ================================================================
+    //  Si estás en Render, define una variable de entorno llamada
+    //  SHEET_URL con el enlace público CSV de tu hoja.
+    //  Durante el build, el comando 'sed' reemplazará __SHEET_URL__
+    //  por su valor.
+    // ================================================================
+    window.SHEET_URL = '__SHEET_URL__';   // <-- Placeholder para reemplazar
+    // Si por alguna razón el placeholder no se reemplaza, usa este fallback:
+    if (window.SHEET_URL === '__SHEET_URL__') {
+        // ============================================================
+        //  >>>  FALLBACK: pon aquí tu URL directamente (solo para pruebas) <<<
+        // ============================================================
+        // window.SHEET_URL = 'https://docs.google.com/spreadsheets/d/.../export?format=csv';
+        console.warn('Usando URL por defecto (cámbiala en el código o configura SHEET_URL en Render)');
+        window.SHEET_URL = 'https://docs.google.com/spreadsheets/d/1E_5zTQm7aY4XJh8tVZ8fK6nQwXpL3sR2aHm9cVbN5w/export?format=csv'; // Ejemplo
+    }
+    console.log('🔗 SHEET_URL cargada:', window.SHEET_URL);
+</script>
+
+<!-- ===== SCRIPTS PRINCIPALES ===== -->
+<script>
+    (function() {
+        'use strict';
+
+        // ============================================================
+        //  CONFIGURACIÓN (usa window.SHEET_URL)
+        // ============================================================
+        const SHEET_URL = window.SHEET_URL;
+
+        const CENTER_LAT = 22.8800;
+        const CENTER_LNG = -109.9120;
+        const ZOOM_LEVEL = 13;
+
+        // ============================================================
+        //  ESTADO
+        // ============================================================
+        let allDJs = [];
+        let currentFilter = 'all';
+        let map = null;
+        let markersLayer = null;
+
+        // ============================================================
+        //  REFERENCIAS DOM
+        // ============================================================
+        const clockEl = document.getElementById('live-clock');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const djListContainer = document.getElementById('dj-list-items');
+        const filterButtons = document.querySelectorAll('.filter-group button');
+        const sheetLink = document.getElementById('sheet-link');
+
+        // Enlace a la hoja (para editar) – solo para referencia
+        sheetLink.href = SHEET_URL.replace('/export?format=csv', '/edit');
+
+        // ============================================================
+        //  INICIALIZAR MAPA
+        // ============================================================
+        function initMap() {
+            map = L.map('map', {
+                center: [CENTER_LAT, CENTER_LNG],
+                zoom: ZOOM_LEVEL,
+                zoomControl: true,
+                fadeAnimation: true,
+                attributionControl: true
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 19
+            }).addTo(map);
+
+            // Círculo "radar" decorativo
+            L.circle([CENTER_LAT, CENTER_LNG], {
+                radius: 3000,
+                color: '#00d4ff33',
+                fillColor: '#00d4ff11',
+                fillOpacity: 0.2,
+                weight: 1,
+                dashArray: '8 8'
+            }).addTo(map);
+
+            markersLayer = L.layerGroup().addTo(map);
+        }
+
+        // ============================================================
+        //  RELOJ
+        // ============================================================
+        function updateClock() {
+            const now = new Date();
+            const h = String(now.getHours()).padStart(2, '0');
+            const m = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            clockEl.textContent = `${h}:${m}:${s}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // ============================================================
+        //  PARSEAR CSV (simple, con manejo de comillas)
+        // ============================================================
+        function parseCSV(csvText) {
+            const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
+            if (lines.length < 2) return [];
+
+            let delimiter = ',';
+            if (lines[0].includes(';') && !lines[0].includes(',')) {
+                delimiter = ';';
+            }
+
+            function splitRow(row, delim) {
+                const result = [];
+                let current = '';
+                let insideQuotes = false;
+                for (let i = 0; i < row.length; i++) {
+                    const ch = row[i];
+                    if (ch === '"') {
+                        insideQuotes = !insideQuotes;
+                    } else if (ch === delim && !insideQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                    } else {
+                        current += ch;
+                    }
+                }
+                result.push(current.trim());
+                return result;
+            }
+
+            const headers = splitRow(lines[0], delimiter).map(h => h.replace(/^"|"$/g, '').trim());
+            const data = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = splitRow(lines[i], delimiter);
+                if (row.length < headers.length) continue;
+                const obj = {};
+                headers.forEach((h, idx) => {
+                    let val = row[idx] ? row[idx].replace(/^"|"$/g, '').trim() : '';
+                    obj[h] = val;
+                });
+                data.push(obj);
+            }
+            return data;
+        }
+
+        // ============================================================
+        //  NORMALIZAR DJs
+        // ============================================================
+        function normalizeDJs(rawData) {
+            const findCol = (possibleNames) => {
+                for (const name of possibleNames) {
+                    const found = rawData[0] ? Object.keys(rawData[0]).find(k => k.toLowerCase().includes(name.toLowerCase())) : null;
+                    if (found) return found;
+                }
+                return null;
+            };
+
+            const colDJ = findCol(['dj', 'artista', 'nombre', 'djs']) || 'DJ';
+            const colVenue = findCol(['venue', 'lugar', 'club', 'bar', 'sitio']) || 'Venue';
+            const colDate = findCol(['fecha', 'date', 'dia']) || 'Fecha';
+            const colStart = findCol(['hora_inicio', 'inicio', 'start', 'hora inicio']) || 'Hora_inicio';
+            const colEnd = findCol(['hora_fin', 'fin', 'end', 'hora fin']) || 'Hora_fin';
+            const colLat = findCol(['latitud', 'lat', 'latitud']) || 'Latitud';
+            const colLng = findCol(['longitud', 'lng', 'longitude', 'lon']) || 'Longitud';
+            const colStyle = findCol(['estilo', 'genero', 'style', 'género']) || 'Estilo';
+
+            const djs = [];
+            for (const row of rawData) {
+                const djName = row[colDJ] || '';
+                const venue = row[colVenue] || '';
+                const fecha = row[colDate] || '';
+                const start = row[colStart] || '';
+                const end = row[colEnd] || '';
+                const lat = parseFloat(row[colLat]) || null;
+                const lng = parseFloat(row[colLng]) || null;
+                const style = row[colStyle] || '';
+
+                if (!djName || !venue || !fecha || !start || !end || lat === null || lng === null) continue;
+
+                let dateObj = null;
+                try {
+                    const dateParts = fecha.split('-');
+                    if (dateParts.length === 3) {
+                        const year = parseInt(dateParts[0]);
+                        const month = parseInt(dateParts[1]) - 1;
+                        const day = parseInt(dateParts[2]);
+                        dateObj = new Date(year, month, day);
+                    } else {
+                        dateObj = new Date(fecha);
+                    }
+                } catch (e) { dateObj = null; }
+
+                function timeToMinutes(timeStr) {
+                    if (!timeStr) return null;
+                    const parts = timeStr.split(':');
+                    if (parts.length === 2) {
+                        const h = parseInt(parts[0]);
+                        const m = parseInt(parts[1]);
+                        if (!isNaN(h) && !isNaN(m)) return h * 60 + m;
+                    }
+                    return null;
+                }
+                const startMin = timeToMinutes(start);
+                const endMin = timeToMinutes(end);
+
+                djs.push({
+                    id: `${djName}_${venue}_${fecha}_${start}`,
+                    name: djName,
+                    venue,
+                    fecha,
+                    start,
+                    end,
+                    startMin,
+                    endMin,
+                    dateObj,
+                    lat,
+                    lng,
+                    style,
+                    isActive: false
+                });
+            }
+            return djs;
+        }
+
+        // ============================================================
+        //  ACTUALIZAR ESTADO ACTIVO
+        // ============================================================
+        function updateActiveStatus(djs) {
+            const now = new Date();
+            const currentDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+            for (const dj of djs) {
+                if (!dj.dateObj || dj.startMin === null || dj.endMin === null) {
+                    dj.isActive = false;
+                    continue;
+                }
+                const isSameDay = dj.dateObj.getFullYear() === currentDate.getFullYear() &&
+                                  dj.dateObj.getMonth() === currentDate.getMonth() &&
+                                  dj.dateObj.getDate() === currentDate.getDate();
+                if (!isSameDay) {
+                    dj.isActive = false;
+                    continue;
+                }
+                let start = dj.startMin;
+                let end = dj.endMin;
+                if (end < start) {
+                    dj.isActive = (currentMinutes >= start) || (currentMinutes < end);
+                } else {
+                    dj.isActive = (currentMinutes >= start && currentMinutes < end);
+                }
+            }
+            return djs;
+        }
+
+        // ============================================================
+        //  RENDER LISTA
+        // ============================================================
+        function renderDJList(djs, filter) {
+            const container = document.getElementById('dj-list-items');
+            let filtered = djs;
+            if (filter === 'now') {
+                filtered = djs.filter(dj => dj.isActive);
+            }
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="text-align:center; color:#555; padding:20px;">No hay DJs para mostrar</div>`;
+                return;
+            }
+
+            let html = '';
+            for (const dj of filtered) {
+                const activeClass = dj.isActive ? 'active' : '';
+                const badge = dj.isActive ? '<span class="badge">🔴 EN VIVO</span>' : '';
+                const icon = dj.isActive ? 'fa-headphones' : 'fa-compact-disc';
+
+                html += `
+                    <div class="dj-item ${activeClass}" data-dj-id="${dj.id}">
+                        <div class="avatar"><i class="fas ${icon}"></i></div>
+                        <div class="info">
+                            <div class="name">${dj.name}</div>
+                            <div class="venue"><i class="fas fa-map-pin" style="color:#888;"></i> ${dj.venue}</div>
+                            <div class="time">${dj.start} - ${dj.end}</div>
+                        </div>
+                        ${badge}
+                        <span class="goto-map" data-lat="${dj.lat}" data-lng="${dj.lng}" title="Centrar en mapa"><i class="fas fa-crosshairs"></i></span>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+
+            container.querySelectorAll('.goto-map').forEach(el => {
+                el.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const lat = parseFloat(this.dataset.lat);
+                    const lng = parseFloat(this.dataset.lng);
+                    if (map && !isNaN(lat) && !isNaN(lng)) {
+                        map.setView([lat, lng], 15);
+                    }
+                });
+            });
+        }
+
+        // ============================================================
+        //  RENDER MARCADORES
+        // ============================================================
+        function renderMarkers(djs) {
+            if (!markersLayer) return;
+            markersLayer.clearLayers();
+
+            let filtered = djs;
+            if (currentFilter === 'now') {
+                filtered = djs.filter(dj => dj.isActive);
+            }
+
+            for (const dj of filtered) {
+                const isActive = dj.isActive;
+                const iconHtml = `<i class="fas fa-compact-disc" style="font-size: 2rem; color: ${isActive ? '#00ffaa' : '#00d4ff'}; text-shadow: 0 0 30px ${isActive ? '#00ffaa88' : '#00d4ff88'};"></i>`;
+                const icon = L.divIcon({
+                    html: iconHtml,
+                    className: 'custom-marker' + (isActive ? ' active' : ''),
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15],
+                    popupAnchor: [0, -20]
+                });
+
+                const marker = L.marker([dj.lat, dj.lng], { icon: icon })
+                    .addTo(markersLayer)
+                    .bindPopup(`
+                        <strong>${dj.name}</strong><br>
+                        <span class="venue">${dj.venue}</span><br>
+                        <span class="time">${dj.start} – ${dj.end}</span><br>
+                        ${dj.style ? `<span style="color:#888;">${dj.style}</span>` : ''}
+                        ${isActive ? '<br><span style="color:#00ffaa; font-weight:bold;">🔴 EN VIVO AHORA</span>' : ''}
+                    `);
+
+                if (isActive) {
+                    L.circle([dj.lat, dj.lng], {
+                        radius: 50,
+                        color: '#00ffaa',
+                        fillColor: '#00ffaa',
+                        fillOpacity: 0.2,
+                        weight: 2,
+                        opacity: 0.6
+                    }).addTo(markersLayer);
+                }
+            }
+        }
+
+        // ============================================================
+        //  CARGA DE DATOS
+        // ============================================================
+        async function loadData() {
+            try {
+                document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#666; padding:20px;">Cargando...</div>';
+
+                const response = await fetch(SHEET_URL);
+                if (!response.ok) throw new Error('Error al obtener la hoja');
+                const csvText = await response.text();
+
+                const raw = parseCSV(csvText);
+                if (raw.length === 0) {
+                    document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#555; padding:20px;">No se encontraron datos en la hoja.</div>';
+                    return;
+                }
+
+                let djs = normalizeDJs(raw);
+                djs = updateActiveStatus(djs);
+                allDJs = djs;
+
+                renderDJList(allDJs, currentFilter);
+                renderMarkers(allDJs);
+            } catch (error) {
+                console.error('Error cargando datos:', error);
+                document.getElementById('dj-list-items').innerHTML = `<div style="text-align:center; color:#ff5555; padding:20px;">Error al cargar: ${error.message}</div>`;
+            }
+        }
+
+        // ============================================================
+        //  FILTROS
+        // ============================================================
+        function setFilter(filter) {
+            currentFilter = filter;
+            filterButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.filter === filter);
+            });
+            if (allDJs.length) {
+                renderDJList(allDJs, filter);
+                renderMarkers(allDJs);
+            }
+        }
+
+        // ============================================================
+        //  INICIO
+        // ============================================================
+        function init() {
+            initMap();
+            loadData();
+
+            refreshBtn.addEventListener('click', loadData);
+
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    setFilter(this.dataset.filter);
+                });
+            });
+
+            setInterval(loadData, 60000);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+
+    })();
+</script>
+</body>
+</html>

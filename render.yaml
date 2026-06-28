@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: djradar-los-cabos
+    env: static
+    buildCommand: npm run build
+    staticPublishPath: .
+    envVars:
+      - key: SHEET_URL
+        sync: false
+    routes:
+      - src: /*
+        dest: /index.html
