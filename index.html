@@ -431,52 +431,6 @@
         updateClock();
 
         // ============================================================
-        //  PARSEAR CSV (simple, con manejo de comillas)
-        // ============================================================
-        function parseCSV(csvText) {
-            const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== '');
-            if (lines.length < 2) return [];
-
-            let delimiter = ',';
-            if (lines[0].includes(';') && !lines[0].includes(',')) {
-                delimiter = ';';
-            }
-
-            function splitRow(row, delim) {
-                const result = [];
-                let current = '';
-                let insideQuotes = false;
-                for (let i = 0; i < row.length; i++) {
-                    const ch = row[i];
-                    if (ch === '"') {
-                        insideQuotes = !insideQuotes;
-                    } else if (ch === delim && !insideQuotes) {
-                        result.push(current.trim());
-                        current = '';
-                    } else {
-                        current += ch;
-                    }
-                }
-                result.push(current.trim());
-                return result;
-            }
-
-            const headers = splitRow(lines[0], delimiter).map(h => h.replace(/^"|"$/g, '').trim());
-            const data = [];
-            for (let i = 1; i < lines.length; i++) {
-                const row = splitRow(lines[i], delimiter);
-                if (row.length < headers.length) continue;
-                const obj = {};
-                headers.forEach((h, idx) => {
-                    let val = row[idx] ? row[idx].replace(/^"|"$/g, '').trim() : '';
-                    obj[h] = val;
-                });
-                data.push(obj);
-            }
-            return data;
-        }
-
-        // ============================================================
         //  NORMALIZAR DJs
         // ============================================================
         function normalizeText(value) {
@@ -516,29 +470,17 @@
         }
 
         async function normalizeDJs(rawData) {
-            const headers = rawData[0] ? Object.keys(rawData[0]) : [];
-
-            const colDJ = findCol(headers, ['dj', 'name', 'artist', 'artista', 'nombre', 'djs', 'djname', 'artistname'], 'DJ');
-            const colVenue = findCol(headers, ['venue', 'lugar', 'club', 'bar', 'sitio', 'location', 'ubicacion', 'direccion', 'place'], 'Venue');
-            const colDate = findCol(headers, ['fecha', 'date', 'dia', 'day'], 'Fecha');
-            const colStart = findCol(headers, ['hora_inicio', 'inicio', 'start', 'hora inicio', 'horainicio', 'time start'], 'Hora_inicio');
-            const colEnd = findCol(headers, ['hora_fin', 'fin', 'end', 'hora fin', 'horafin', 'time end'], 'Hora_fin');
-            const colLat = findCol(headers, ['latitud', 'lat', 'latitude'], 'Latitud');
-            const colLng = findCol(headers, ['longitud', 'lng', 'longitude', 'lon', 'long'], 'Longitud');
-            const colPlace = findCol(headers, ['place', 'lugar', 'ubicacion', 'direccion', 'location', 'maps', 'google maps', 'googlemaps', 'link', 'url'], 'Lugar');
-            const colStyle = findCol(headers, ['estilo', 'genero', 'style', 'genre', 'genero musical'], 'Estilo');
-
             const djs = [];
             for (const row of rawData) {
-                const djName = row[colDJ] || '';
-                const venue = row[colVenue] || '';
-                const fecha = row[colDate] || '';
-                const start = row[colStart] || '';
-                const end = row[colEnd] || '';
-                const style = row[colStyle] || '';
-                const placeValue = row[colPlace] || venue || '';
-                const parsedLat = parseFloat(row[colLat]);
-                const parsedLng = parseFloat(row[colLng]);
+                const djName = row.name || row.dj || row.DJ || '';
+                const venue = row.venue || row.location || row.lugar || '';
+                const fecha = row.date || row.fecha || '';
+                const start = row.start || row.hora_inicio || '';
+                const end = row.end || row.hora_fin || '';
+                const style = row.style || row.estilo || '';
+                const placeValue = row.place || row.ubicacion || row.direccion || venue || '';
+                const parsedLat = parseFloat(row.lat || row.latitud || '');
+                const parsedLng = parseFloat(row.lng || row.longitud || '');
                 let lat = Number.isFinite(parsedLat) ? parsedLat : CENTER_LAT;
                 let lng = Number.isFinite(parsedLng) ? parsedLng : CENTER_LNG;
 
@@ -729,14 +671,12 @@
             try {
                 document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#666; padding:20px;">Cargando...</div>';
 
-                const targetUrl = SHEET_PUBLIC_URL || SHEET_API_URL;
-                const response = await fetch(targetUrl);
-                if (!response.ok) throw new Error('Error al obtener la hoja');
-                const csvText = await response.text();
+                const response = await fetch('/data.json');
+                if (!response.ok) throw new Error('Error al obtener los datos');
+                const raw = await response.json();
 
-                const raw = parseCSV(csvText);
-                if (raw.length === 0) {
-                    document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#555; padding:20px;">No se encontraron datos en la hoja.</div>';
+                if (!Array.isArray(raw) || raw.length === 0) {
+                    document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#555; padding:20px;">No se encontraron datos.</div>';
                     return;
                 }
 

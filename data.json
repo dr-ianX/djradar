@@ -1,0 +1,20 @@
+[
+  {
+    "name": "DJ Demo",
+    "venue": "Cabo San Lucas",
+    "date": "2026-06-27",
+    "start": "22:00",
+    "end": "03:00",
+    "place": "Cabo San Lucas, Baja California Sur",
+    "style": "House"
+  },
+  {
+    "name": "DJ Test",
+    "venue": "San José del Cabo",
+    "date": "2026-06-27",
+    "start": "23:00",
+    "end": "04:00",
+    "place": "San José del Cabo, Baja California Sur",
+    "style": "Techno"
+  }
+]
