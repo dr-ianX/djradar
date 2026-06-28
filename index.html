@@ -357,14 +357,11 @@
     //  por su valor.
     // ================================================================
     window.SHEET_URL = '__SHEET_URL__';   // <-- Placeholder para reemplazar
-    // Si por alguna razón el placeholder no se reemplaza, usa este fallback:
+    // Si por alguna razón el placeholder no se reemplaza, mostrar error
     if (window.SHEET_URL === '__SHEET_URL__') {
-        // ============================================================
-        //  >>>  FALLBACK: pon aquí tu URL directamente (solo para pruebas) <<<
-        // ============================================================
-        // window.SHEET_URL = 'https://docs.google.com/spreadsheets/d/.../export?format=csv';
-        console.warn('Usando URL por defecto (cámbiala en el código o configura SHEET_URL en Render)');
-        window.SHEET_URL = 'https://docs.google.com/spreadsheets/d/1E_5zTQm7aY4XJh8tVZ8fK6nQwXpL3sR2aHm9cVbN5w/export?format=csv'; // Ejemplo
+        console.error('ERROR: SHEET_URL no configurada. Configura la variable de entorno SHEET_URL en Render.');
+        document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0a0a;color:#ff5555;font-family:sans-serif;text-align:center;padding:20px;"><div><h1>⚠️ Error de Configuración</h1><p>La variable de entorno SHEET_URL no está configurada en Render.</p><p>Por favor configura esta variable con la URL de tu Google Sheet CSV.</p></div></div>';
+        throw new Error('SHEET_URL no configurada');
     }
     console.log('🔗 SHEET_URL cargada:', window.SHEET_URL);
 </script>
