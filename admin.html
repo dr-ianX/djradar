@@ -35,8 +35,12 @@
     </div>
   </div>
 
-  <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-    <input id="search" class="search" placeholder="Buscar DJ, venue, fecha...">
+  <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <div class="controls" style="gap:6px">
+      <button id="view-sheet" class="btn">Hoja</button>
+      <button id="view-submissions" class="btn">Submissions</button>
+    </div>
+    <input id="search" class="search" placeholder="Buscar DJ, venue, fecha..." style="flex:1;min-width:180px">
     <button id="refresh" class="btn">Actualizar</button>
     <div style="margin-left:auto" class="muted">Los cambios se guardan en `overrides.json`</div>
   </div>

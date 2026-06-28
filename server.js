@@ -104,6 +104,24 @@ app.get('/api/health', (req, res) => {
     res.status(200).json({ ok: true });
 });
 
+function extractLatLngFromQuery(query) {
+    if (!query) return null;
+    const patterns = [
+        /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+        /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+        /q=(-?\d+\.\d+),(-?\d+\.\d+)/
+    ];
+    for (const regex of patterns) {
+        const match = query.match(regex);
+        if (match) {
+            return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
+        }
+    }
+    const simple = query.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+    if (simple) return { lat: parseFloat(simple[1]), lng: parseFloat(simple[2]) };
+    return null;
+}
+
 app.get('/api/geocode', async (req, res) => {
     const place = req.query.place || '';
     if (!place) {
@@ -112,13 +130,9 @@ app.get('/api/geocode', async (req, res) => {
 
     try {
         const query = String(place).trim();
-
-        // Quick parse: if the place string already includes coordinates (Google Maps @lat,lng or lat,lng), return them
-        const coordMatch = query.match(/@?(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
-        if (coordMatch) {
-            const lat = parseFloat(coordMatch[1]);
-            const lng = parseFloat(coordMatch[2]);
-            return res.json({ lat, lng, displayName: query });
+        const directCoords = extractLatLngFromQuery(query);
+        if (directCoords) {
+            return res.json({ lat: directCoords.lat, lng: directCoords.lng, displayName: query });
         }
 
         // First try Nominatim (OpenStreetMap)
@@ -247,6 +261,23 @@ app.post('/api/webhook/submission', async (req, res) => {
 app.get('/api/submissions', requireAdmin, (req, res) => {
     const subs = readSubmissions();
     res.json(subs);
+});
+
+app.delete('/api/admin/submission/:id', requireAdmin, (req, res) => {
+    const id = req.params.id;
+    const subs = readSubmissions();
+    const idx = subs.findIndex(s => s.id === id);
+    if (idx === -1) {
+        return res.status(404).json({ error: 'Submission not found' });
+    }
+    subs.splice(idx, 1);
+    try {
+        writeSubmissions(subs);
+        return res.json({ ok: true });
+    } catch (e) {
+        console.error('Failed deleting submission:', e);
+        return res.status(500).json({ error: 'Failed to delete' });
+    }
 });
 
 app.post('/api/admin/approveSubmission', requireAdmin, (req, res) => {

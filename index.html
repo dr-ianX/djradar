@@ -519,15 +519,20 @@ p<!DOCTYPE html>
             }
         }
 
-        // Extract lat/lng from strings like "@12.345,-67.890,15z" or "12.345, -67.890"
+        // Extract lat/lng from strings like "@12.345,-67.890,15z", "!3d12.345!4d-67.890" or "12.345, -67.890"
         function extractLatLngFromPlaceString(s) {
             if (!s) return null;
-            // Look for @lat,lng pattern (Google Maps)
-            let m = s.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-            if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
-            // Look for simple lat,lng
-            m = s.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
-            if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+            const patterns = [
+                /@(-?\d+\.\d+),(-?\d+\.\d+)/,
+                /!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/,
+                /q=(-?\d+\.\d+),(-?\d+\.\d+)/
+            ];
+            for (const regex of patterns) {
+                const m = s.match(regex);
+                if (m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+            }
+            const simple = s.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+            if (simple) return { lat: parseFloat(simple[1]), lng: parseFloat(simple[2]) };
             return null;
         }
 
@@ -539,6 +544,8 @@ p<!DOCTYPE html>
             const colStart = findCol(headers, ['hora inicio', 'hora_inicio', 'inicio', 'start', 'horainicio', 'time start'], 'Start');
             const colEnd = findCol(headers, ['hora fin', 'hora_fin', 'fin', 'ending', 'end', 'horafin', 'time end'], 'Ending');
             const colPlace = findCol(headers, ['lugar / direccion', 'lugar', 'ubicacion', 'direccion', 'place', 'location', 'maps', 'google maps', 'googlemaps', 'link', 'url'], 'Lugar / dirección');
+            const colLat = findCol(headers, ['lat', 'latitude', 'latitud', 'coordenadas', 'coordlat'], 'Lat');
+            const colLng = findCol(headers, ['lng', 'lon', 'longitude', 'longitud', 'coordlng'], 'Lng');
             const colStyle = findCol(headers, ['music style', 'estilo', 'genero', 'style', 'genre', 'genero musical'], 'Music Style');
             const colStatus = findCol(headers, ['estado', 'status', 'state'], 'Estado');
 
@@ -554,8 +561,8 @@ p<!DOCTYPE html>
                 const end = row[colEnd] || '';
                 const style = row[colStyle] || '';
                 const placeValue = row[colPlace] || venue || '';
-                const parsedLat = parseFloat(row.lat || row.latitud || '');
-                const parsedLng = parseFloat(row.lng || row.longitud || '');
+                const parsedLat = parseFloat(row[colLat] || row.lat || row.latitud || '');
+                const parsedLng = parseFloat(row[colLng] || row.lng || row.longitud || '');
                 let lat = Number.isFinite(parsedLat) ? parsedLat : null;
                 let lng = Number.isFinite(parsedLng) ? parsedLng : null;
 
