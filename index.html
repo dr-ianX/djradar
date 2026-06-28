@@ -344,10 +344,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <!-- ============================================================ -->
-<!--  CONFIGURACIÓN DE GOOGLE SHEETS (proxy del backend)          -->
+<!--  CONFIGURACIÓN DE GOOGLE SHEETS                              -->
 <!-- ============================================================ -->
 <script>
     window.SHEET_API_URL = window.SHEET_API_URL || '/api/sheet';
+    window.SHEET_PUBLIC_URL = window.SHEET_PUBLIC_URL || '';
 </script>
 
 <!-- ===== SCRIPTS PRINCIPALES ===== -->
@@ -359,6 +360,7 @@
         //  CONFIGURACIÓN (usa el proxy del backend)
         // ============================================================
         const SHEET_API_URL = window.SHEET_API_URL || window.SHEET_URL || '/api/sheet';
+        const SHEET_PUBLIC_URL = window.SHEET_PUBLIC_URL || '';
 
         const CENTER_LAT = 22.8800;
         const CENTER_LNG = -109.9120;
@@ -727,7 +729,8 @@
             try {
                 document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#666; padding:20px;">Cargando...</div>';
 
-                const response = await fetch(SHEET_API_URL);
+                const targetUrl = SHEET_PUBLIC_URL || SHEET_API_URL;
+                const response = await fetch(targetUrl);
                 if (!response.ok) throw new Error('Error al obtener la hoja');
                 const csvText = await response.text();
 
