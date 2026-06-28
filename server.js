@@ -68,6 +68,20 @@ app.get('/api/sheet', async (req, res) => {
     }
 });
 
+app.get('/api/sheet/edit', (req, res) => {
+    const sheetUrl = getSheetUrl();
+    if (!sheetUrl) {
+        return res.status(500).send('SHEET_URL not configured');
+    }
+
+    const editUrl = sheetUrl.replace(/\/export\?format=csv.*$/, '/edit');
+    if (!editUrl.includes('/edit')) {
+        return res.status(400).send('No se pudo construir la URL de edición');
+    }
+
+    return res.redirect(editUrl);
+});
+
 app.get('/api/geocode', async (req, res) => {
     const place = req.query.place || '';
     if (!place) {
