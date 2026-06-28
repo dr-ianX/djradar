@@ -1,5 +1,9 @@
 services:
   - type: web
     name: djradar-los-cabos
-    env: static
-    staticPublishPath: .
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: SHEET_URL
+        sync: false

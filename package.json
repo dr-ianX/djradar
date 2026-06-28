@@ -2,8 +2,13 @@
   "name": "djradar-los-cabos",
   "version": "1.0.0",
   "description": "DJ Radar - Mapa interactivo de DJs en Los Cabos en tiempo real",
-  "main": "index.html",
-  "scripts": {},
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
   "keywords": ["dj", "radar", "los-cabos", "mapa", "tiempo-real"],
   "author": "",
   "license": "MIT"

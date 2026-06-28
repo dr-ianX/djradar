@@ -344,12 +344,11 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <!-- ============================================================ -->
-<!--  CONFIGURACIÓN DE GOOGLE SHEETS                                -->
+<!--  CONFIGURACIÓN DE GOOGLE SHEETS (inyectada por backend)        -->
 <!-- ============================================================ -->
 <script>
-    // PON AQUÍ TU URL DE GOOGLE SHEETS (formato CSV export)
-    // Ejemplo: https://docs.google.com/spreadsheets/d/TU_ID/export?format=csv
-    window.SHEET_URL = 'https://docs.google.com/spreadsheets/d/TU_ID_AQUI/export?format=csv';
+    // La URL se inyecta dinámicamente por el backend desde variables de entorno
+    window.SHEET_URL = '__SHEET_URL__';
     
     console.log('🔗 SHEET_URL configurada:', window.SHEET_URL);
 </script>
