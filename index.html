@@ -497,16 +497,33 @@
             return fallback;
         }
 
-        function normalizeDJs(rawData) {
+        async function geocodePlace(placeValue) {
+            const query = String(placeValue || '').trim();
+            if (!query) return null;
+
+            try {
+                const response = await fetch(`/api/geocode?place=${encodeURIComponent(query)}`);
+                if (!response.ok) return null;
+                const data = await response.json();
+                if (!data || !Number.isFinite(data.lat) || !Number.isFinite(data.lng)) return null;
+                return { lat: data.lat, lng: data.lng };
+            } catch (error) {
+                console.warn('Geocoding failed for:', query, error);
+                return null;
+            }
+        }
+
+        async function normalizeDJs(rawData) {
             const headers = rawData[0] ? Object.keys(rawData[0]) : [];
 
             const colDJ = findCol(headers, ['dj', 'name', 'artist', 'artista', 'nombre', 'djs', 'djname', 'artistname'], 'DJ');
-            const colVenue = findCol(headers, ['venue', 'lugar', 'club', 'bar', 'sitio', 'location'], 'Venue');
+            const colVenue = findCol(headers, ['venue', 'lugar', 'club', 'bar', 'sitio', 'location', 'ubicacion', 'direccion', 'place'], 'Venue');
             const colDate = findCol(headers, ['fecha', 'date', 'dia', 'day'], 'Fecha');
             const colStart = findCol(headers, ['hora_inicio', 'inicio', 'start', 'hora inicio', 'horainicio', 'time start'], 'Hora_inicio');
             const colEnd = findCol(headers, ['hora_fin', 'fin', 'end', 'hora fin', 'horafin', 'time end'], 'Hora_fin');
             const colLat = findCol(headers, ['latitud', 'lat', 'latitude'], 'Latitud');
             const colLng = findCol(headers, ['longitud', 'lng', 'longitude', 'lon', 'long'], 'Longitud');
+            const colPlace = findCol(headers, ['place', 'lugar', 'ubicacion', 'direccion', 'location', 'maps', 'google maps', 'googlemaps', 'link', 'url'], 'Lugar');
             const colStyle = findCol(headers, ['estilo', 'genero', 'style', 'genre', 'genero musical'], 'Estilo');
 
             const djs = [];
@@ -516,11 +533,20 @@
                 const fecha = row[colDate] || '';
                 const start = row[colStart] || '';
                 const end = row[colEnd] || '';
+                const style = row[colStyle] || '';
+                const placeValue = row[colPlace] || venue || '';
                 const parsedLat = parseFloat(row[colLat]);
                 const parsedLng = parseFloat(row[colLng]);
-                const lat = Number.isFinite(parsedLat) ? parsedLat : CENTER_LAT;
-                const lng = Number.isFinite(parsedLng) ? parsedLng : CENTER_LNG;
-                const style = row[colStyle] || '';
+                let lat = Number.isFinite(parsedLat) ? parsedLat : CENTER_LAT;
+                let lng = Number.isFinite(parsedLng) ? parsedLng : CENTER_LNG;
+
+                if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
+                    const geocoded = await geocodePlace(placeValue);
+                    if (geocoded) {
+                        lat = geocoded.lat;
+                        lng = geocoded.lng;
+                    }
+                }
 
                 if (!djName && !venue) continue;
 
@@ -711,7 +737,7 @@
                     return;
                 }
 
-                let djs = normalizeDJs(raw);
+                let djs = await normalizeDJs(raw);
                 djs = updateActiveStatus(djs);
                 allDJs = djs;
 
@@ -724,8 +750,8 @@
                 renderMarkers(allDJs);
             } catch (error) {
                 console.error('Error cargando datos:', error);
-                document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#ffaa00; padding:20px;">⚠️ No se pudieron cargar los datos. Verifica la URL de Google Sheets.</div>';
-                // No romper la página, solo mostrar mensaje de error
+                const message = error && error.message ? error.message : 'No se pudieron cargar los datos. Verifica la URL de Google Sheets.';
+                document.getElementById('dj-list-items').innerHTML = `<div style="text-align:center; color:#ffaa00; padding:20px;">⚠️ ${message}</div>`;
             }
         }
 

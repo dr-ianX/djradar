@@ -68,6 +68,41 @@ app.get('/api/sheet', async (req, res) => {
     }
 });
 
+app.get('/api/geocode', async (req, res) => {
+    const place = req.query.place || '';
+    if (!place) {
+        return res.status(400).json({ error: 'No place provided' });
+    }
+
+    try {
+        const query = String(place).trim();
+        const searchUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&addressdetails=0&q=${encodeURIComponent(query)}`;
+        const response = await fetch(searchUrl, {
+            headers: {
+                'User-Agent': 'DJRadar/1.0'
+            }
+        });
+
+        if (!response.ok) {
+            return res.status(502).json({ error: 'Geocoding service unavailable' });
+        }
+
+        const data = await response.json();
+        if (!data || !data[0]) {
+            return res.status(404).json({ error: 'No location found' });
+        }
+
+        res.json({
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+            displayName: data[0].display_name
+        });
+    } catch (error) {
+        console.error('Geocoding error:', error);
+        res.status(502).json({ error: 'Geocoding failed' });
+    }
+});
+
 app.use(express.static(path.join(__dirname)));
 
 function startServer(port = PORT) {
