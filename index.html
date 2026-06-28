@@ -671,8 +671,7 @@
             try {
                 document.getElementById('dj-list-items').innerHTML = '<div style="text-align:center; color:#666; padding:20px;">Cargando...</div>';
 
-                const sheetUrl = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTa3jU_Bw1W7ygPGtIAvjxoAKzt7x1cHAlXxcn18YNVIMjD4XA-yQfBUWVty7bm4SinwwUiTDaXnAyh/pub?output=csv';
-                const response = await fetch(sheetUrl);
+                const response = await fetch('/api/sheet');
                 if (!response.ok) throw new Error('Error al obtener los datos');
                 const csvText = await response.text();
 
