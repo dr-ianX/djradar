@@ -1,3 +1,0 @@
-Nombre del DJ,Venue,Fecha,Hora inicio,Hora fin,Lugar / dirección,Estilo,Estado,Correo de contacto
-DJ Demo,Venue Demo,2026-06-27,22:00,03:00,Cabo San Lucas,House,Aprobado,demo@example.com
-DJ Test,Venue Test,2026-06-27,23:00,04:00,San José del Cabo,Techno,Aprobado,test@example.com
