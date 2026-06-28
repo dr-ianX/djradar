@@ -82,6 +82,10 @@ app.get('/api/sheet/edit', (req, res) => {
     return res.redirect(editUrl);
 });
 
+app.get('/api/health', (req, res) => {
+    res.status(200).json({ ok: true });
+});
+
 app.get('/api/geocode', async (req, res) => {
     const place = req.query.place || '';
     if (!place) {
