@@ -602,8 +602,10 @@ p<!DOCTYPE html>
                 const startMin = timeToMinutes(start);
                 const endMin = timeToMinutes(end);
 
+                // Deterministic id so admin overrides can match rows reliably
+                const makeId = (a,b,c,d) => encodeURIComponent((normalizeText(a||'') + '_' + normalizeText(b||'') + '_' + String(c||'') + '_' + String(d||'')).replace(/[^a-z0-9_\-]/g, ''));
                 djs.push({
-                    id: `${djName}_${venue}_${fecha}_${start}_${Math.random().toString(36).slice(2,8)}`,
+                    id: makeId(djName, venue, fecha, start),
                     name: djName,
                     venue,
                     fecha,

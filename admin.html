@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DJ Radar — Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    body{font-family:'Rajdhani',sans-serif;background:#070707;color:#e8eef6;padding:18px}
+    h1{font-size:1.4rem;color:#00d4ff}
+    .top{display:flex;gap:12px;align-items:center}
+    .token{margin-left:auto}
+    .btn{background:#00d4ff;color:#041; padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{padding:8px;border-bottom:1px solid #111;text-align:left}
+    th{color:#a8cfe6}
+    tr:hover td{background:#0e0e0e}
+    .badge{background:#00ffaa22;color:#00ffaa;padding:4px 8px;border-radius:12px}
+    .controls{display:flex;gap:8px}
+    .save{background:#00d4ff}
+    .del{background:#ff5577}
+    .search{padding:8px;border-radius:8px;border:1px solid #222;background:#0b0b0b;color:#e8eef6}
+    .muted{color:#8899aa;font-size:0.9rem}
+    .col-edit{min-width:120px}
+    .inline-edit{background:transparent;border:1px dashed #222;padding:6px;border-radius:6px;color:#e8eef6}
+  </style>
+</head>
+<body>
+  <div class="top">
+    <h1>DJ Radar — Panel Admin</h1>
+    <div class="muted">Admin local — protege con `ADMIN_PASS`</div>
+    <div class="token">
+      <input id="admin-token" placeholder="Admin token" style="padding:6px;border-radius:6px;background:#0b0b0b;border:1px solid #222;color:#e8eef6">
+      <button id="save-token" class="btn">Guardar</button>
+    </div>
+  </div>
+
+  <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
+    <input id="search" class="search" placeholder="Buscar DJ, venue, fecha...">
+    <button id="refresh" class="btn">Actualizar</button>
+    <div style="margin-left:auto" class="muted">Los cambios se guardan en `overrides.json`</div>
+  </div>
+
+  <table id="table">
+    <thead>
+      <tr>
+        <th>Estado</th>
+        <th>DJ</th>
+        <th class="col-edit">Venue</th>
+        <th>Fecha</th>
+        <th>Inicio</th>
+        <th>Fin</th>
+        <th>Estilo</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">Cargando...</td></tr>
+    </tbody>
+  </table>
+
+  <script src="/admin.js"></script>
+</body>
+</html>

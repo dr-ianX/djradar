@@ -5,6 +5,8 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(express.json());
+
 function normalizeSheetUrl(rawUrl) {
     if (!rawUrl) return '';
 
@@ -165,6 +167,155 @@ app.get('/api/geocode', async (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname)));
+
+// -------------------- Admin overrides API --------------------
+function requireAdmin(req, res, next) {
+    const token = req.headers['x-admin-token'] || '';
+    const adminPass = process.env.ADMIN_PASS || '';
+    if (!adminPass) return res.status(500).json({ error: 'ADMIN_PASS not configured on server' });
+    if (!token || token !== adminPass) return res.status(401).json({ error: 'Unauthorized' });
+    next();
+}
+
+const OVERRIDES_FILE = path.join(__dirname, 'overrides.json');
+
+function readOverrides() {
+    try {
+        if (!fs.existsSync(OVERRIDES_FILE)) return {};
+        const text = fs.readFileSync(OVERRIDES_FILE, 'utf8');
+        return text ? JSON.parse(text) : {};
+    } catch (e) {
+        console.error('Failed reading overrides:', e);
+        return {};
+    }
+}
+
+function writeOverrides(obj) {
+    fs.writeFileSync(OVERRIDES_FILE, JSON.stringify(obj, null, 2), 'utf8');
+}
+
+// -------------------- Submissions (from Google Forms / Apps Script) --------------------
+const SUBMISSIONS_FILE = path.join(__dirname, 'submissions.json');
+
+function readSubmissions() {
+    try {
+        if (!fs.existsSync(SUBMISSIONS_FILE)) return [];
+        const text = fs.readFileSync(SUBMISSIONS_FILE, 'utf8');
+        return text ? JSON.parse(text) : [];
+    } catch (e) {
+        console.error('Failed reading submissions:', e);
+        return [];
+    }
+}
+
+function writeSubmissions(arr) {
+    fs.writeFileSync(SUBMISSIONS_FILE, JSON.stringify(arr, null, 2), 'utf8');
+}
+
+function makeIdForRow(dj, venue, date, start) {
+    const normalize = s => String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+    return encodeURIComponent((normalize(dj)+'_'+normalize(venue)+'_'+String(date||'')+'_'+String(start||'')).replace(/[^a-z0-9_\-]/g,''));
+}
+
+app.post('/api/webhook/submission', async (req, res) => {
+    const secret = process.env.SHEET_WEBHOOK_SECRET || '';
+    if (!secret) return res.status(500).json({ error: 'SHEET_WEBHOOK_SECRET not configured' });
+    const token = req.headers['x-webhook-token'] || '';
+    if (!token || token !== secret) return res.status(401).json({ error: 'Unauthorized' });
+
+    const body = req.body || {};
+    // Accept both namedValues and a plain object
+    const payload = body.namedValues || body.form || body || {};
+    const dj = payload['DJ'] || payload['dj'] || payload['Nombre'] || payload['Name'] || payload['Artist'] || '';
+    const venue = payload['Venue'] || payload['venue'] || payload['Lugar'] || '';
+    const date = payload['Fecha'] || payload['Date'] || '';
+    const start = payload['Inicio'] || payload['Start'] || payload['hora inicio'] || '';
+
+    const submissions = readSubmissions();
+    const id = makeIdForRow(dj, venue, date, start) + '_' + Date.now();
+    const entry = { id, receivedAt: new Date().toISOString(), dj, venue, date, start, raw: payload };
+    submissions.push(entry);
+    try {
+        writeSubmissions(submissions);
+        return res.json({ ok: true, id });
+    } catch (e) {
+        console.error('Failed saving submission:', e);
+        return res.status(500).json({ error: 'Failed to save' });
+    }
+});
+
+app.get('/api/submissions', requireAdmin, (req, res) => {
+    const subs = readSubmissions();
+    res.json(subs);
+});
+
+app.post('/api/admin/approveSubmission', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    if (!body.id) return res.status(400).json({ error: 'Missing id' });
+    const subs = readSubmissions();
+    const idx = subs.findIndex(s => s.id === body.id);
+    if (idx === -1) return res.status(404).json({ error: 'Submission not found' });
+    const sub = subs[idx];
+
+    // Create an override entry to approve the DJ
+    const overrides = readOverrides();
+    const overrideId = makeIdForRow(sub.dj, sub.venue, sub.date, sub.start);
+    overrides[overrideId] = {
+        DJ: sub.dj,
+        Venue: sub.venue,
+        Fecha: sub.date,
+        Inicio: sub.start,
+        estado: 'aprobado'
+    };
+    try {
+        writeOverrides(overrides);
+        // remove submission
+        subs.splice(idx, 1);
+        writeSubmissions(subs);
+        return res.json({ ok: true, overrideId });
+    } catch (e) {
+        console.error('Approve failed:', e);
+        return res.status(500).json({ error: 'Failed to approve' });
+    }
+});
+
+app.get('/api/admin/overrides', requireAdmin, (req, res) => {
+    const data = readOverrides();
+    res.json(data);
+});
+
+app.post('/api/admin/overrides', requireAdmin, (req, res) => {
+    const body = req.body || {};
+    if (!body.id || !body.override) return res.status(400).json({ error: 'Missing id or override' });
+    const all = readOverrides();
+    all[body.id] = body.override;
+    try {
+        writeOverrides(all);
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('Failed to write overrides:', e);
+        res.status(500).json({ error: 'Failed to save' });
+    }
+});
+
+app.delete('/api/admin/overrides/:id', requireAdmin, (req, res) => {
+    const id = req.params.id;
+    const all = readOverrides();
+    if (all[id]) delete all[id];
+    try {
+        writeOverrides(all);
+        res.json({ ok: true });
+    } catch (e) {
+        console.error('Failed to write overrides:', e);
+        res.status(500).json({ error: 'Failed to save' });
+    }
+});
+
+// Serve admin UI (static file)
+app.get('/admin', (req, res) => {
+    const html = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf8');
+    res.type('html').send(html);
+});
 
 function startServer(port = PORT) {
     return new Promise((resolve) => {
