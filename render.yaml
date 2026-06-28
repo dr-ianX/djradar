@@ -2,7 +2,6 @@ services:
   - type: web
     name: djradar-los-cabos
     env: node
-    buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: SHEET_URL
