@@ -367,6 +367,41 @@
             .brand h1 { font-size: 1.2rem; }
             .clock-bar { font-size: 0.7rem; }
         }
+        /* ===== REVIEW + CHAT PANEL ===== */
+        #review-panel {
+            position: fixed;
+            right: 20px;
+            top: 60px;
+            width: 380px;
+            max-height: calc(100vh - 120px);
+            background: #0f1720;
+            border: 1px solid #223343;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+            border-radius: 10px;
+            padding: 12px;
+            overflow: hidden;
+            z-index: 2000;
+            display: none;
+        }
+        #review-panel h3 { margin-bottom: 8px; color:#e8f3ff }
+        #review-tabs { display:flex; gap:8px; margin-bottom: 10px; }
+        #review-tabs button { flex:1; padding:8px 10px; border:1px solid #223343; background:#0a111c; color:#cbd6f0; border-radius:8px; cursor:pointer; }
+        #review-tabs button.active { background:#00d4ff; color:#041; border-color:#00d4ff; }
+        #review-panel .panel-section { display:none; }
+        #review-panel .panel-section.active { display:block; }
+        .review-item, .chat-message { padding:8px; border-radius:8px; background:#0b1220; margin-bottom:8px; border:1px solid #172733; }
+        .chat-message { display:flex; flex-direction:column; }
+        .chat-message .chat-meta { font-size:0.82rem; color:#99aabb; margin-bottom:4px; }
+        .review-form textarea, .chat-input textarea { width:100%; min-height:68px; background:#071017; color:#e8f3ff; border:1px solid #223343; padding:8px; border-radius:6px; resize:vertical; }
+        .review-controls, .chat-controls { display:flex; gap:8px; margin-top:8px; align-items:center; }
+        .chat-input textarea { min-height:50px; }
+        .chat-actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
+        .chat-actions input { flex:1; padding:8px; border-radius:8px; border:1px solid #223343; background:#071017; color:#e8eef6; }
+        .chat-actions button { background:#00d4ff; color:#041; padding:8px 12px; border:none; border-radius:8px; cursor:pointer; }
+        .review-form .pill-note { margin-top:6px; font-size:0.82rem; color:#8aa0bf; }
+        .panel-body { max-height: calc(100vh - 220px); overflow:auto; padding-right:4px; }
+        .panel-body::-webkit-scrollbar { width: 6px; }
+        .panel-body::-webkit-scrollbar-thumb { background:#223343; border-radius:4px; }
     </style>
 </head>
 <body>
@@ -407,6 +442,7 @@
             <button class="active" data-filter="all">Todos</button>
             <button data-filter="now">🔴 Ahora</button>
             <button data-filter="next">⏳ Próximos</button>
+            <button data-filter="favorites">⭐ Favoritos</button>
         </div>
         <div class="legend-panel">
             <span class="pill"><i class="fas fa-headphones"></i> En vivo</span>
@@ -432,6 +468,49 @@
 
 <!-- ===== LEAFETL JS ===== -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<!-- ===== REVIEW PANEL HTML ===== -->
+<div id="review-panel" aria-hidden="true">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 id="review-title">Reseñas y Chat</h3>
+        <button id="close-review" style="background:transparent;border:none;color:#9fbfdc;cursor:pointer;font-size:1.1rem">✖</button>
+    </div>
+    <div id="review-tabs">
+        <button id="tab-reviews" class="active">Reseñas</button>
+        <button id="tab-chat">Chat</button>
+    </div>
+    <div id="review-section" class="panel-section active">
+        <div id="review-list" class="panel-body"></div>
+        <div style="margin-top:8px">
+            <div class="review-form">
+                <textarea id="review-text" maxlength="100" placeholder="Escribe una reseña (máx 100 caracteres)"></textarea>
+                <div class="emoji-picker" style="margin-top:6px">
+                    <button data-emoji="🎧">🎧</button>
+                    <button data-emoji="🔥">🔥</button>
+                    <button data-emoji="💣">💣</button>
+                    <button data-emoji="🤩">🤩</button>
+                    <button data-emoji="😴">😴</button>
+                    <button data-emoji="👎">👎</button>
+                </div>
+                <div class="review-controls">
+                    <input id="review-nickname" placeholder="Tu apodo (opcional)" style="flex:1;padding:6px;border-radius:6px;background:#071017;border:1px solid #223343;color:#e8f3ff">
+                    <button id="submit-review" style="padding:8px 10px;border-radius:6px;background:#00d4ff;color:#001; border:none;cursor:pointer">Enviar</button>
+                </div>
+                <div class="pill-note">Las reseñas se guardan localmente y se sincronizan con el servidor.</div>
+            </div>
+        </div>
+    </div>
+    <div id="chat-section" class="panel-section">
+        <div id="chat-list" class="panel-body"></div>
+        <div class="chat-actions">
+            <input id="chat-nickname" placeholder="Tu apodo" />
+            <button id="send-chat">Enviar</button>
+        </div>
+        <div class="chat-input" style="margin-top:8px">
+            <textarea id="chat-text" maxlength="280" placeholder="Escribe un mensaje de chat"></textarea>
+        </div>
+    </div>
+</div>
 
 <!-- ============================================================ -->
 <!--  CONFIGURACIÓN DE GOOGLE SHEETS                              -->
@@ -464,6 +543,245 @@
         let map = null;
         let markersLayer = null;
         let markerById = new Map();
+
+        // ============================================================
+        //  SEGUIMIENTOS / localStorage
+        // ============================================================
+        const LS_FOLLOWED_DJS = 'followedDJs';
+        const LS_FOLLOWED_VENUES = 'followedVenues';
+        const LS_LAST_FILTER = 'lastFilter';
+        const LS_LAST_SEARCH = 'lastSearch';
+
+        function readJSON(key, fallback) {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : fallback;
+            } catch (e) { return fallback; }
+        }
+        function writeJSON(key, value) {
+            try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* ignore */ }
+        }
+
+        function getFollowedDJs() {
+            return readJSON(LS_FOLLOWED_DJS, []);
+        }
+        function isDJFollowed(id) {
+            return getFollowedDJs().includes(id);
+        }
+        function toggleFollowDJ(id) {
+            const list = getFollowedDJs();
+            const idx = list.indexOf(id);
+            if (idx === -1) list.push(id); else list.splice(idx, 1);
+            writeJSON(LS_FOLLOWED_DJS, list);
+            return list.includes(id);
+        }
+
+        function getVenueKey(venue) {
+            return String(venue || '').trim();
+        }
+        function getFollowedVenues() {
+            return readJSON(LS_FOLLOWED_VENUES, []);
+        }
+        function isVenueFollowed(venue) {
+            return getFollowedVenues().includes(getVenueKey(venue));
+        }
+        function toggleFollowVenue(venue) {
+            const key = getVenueKey(venue);
+            const list = getFollowedVenues();
+            const idx = list.indexOf(key);
+            if (idx === -1) list.push(key); else list.splice(idx, 1);
+            writeJSON(LS_FOLLOWED_VENUES, list);
+            return list.includes(key);
+        }
+
+        // ============================================================
+        //  RESEÑAS / localStorage
+        // ============================================================
+        const LS_REVIEWS = 'userReviews';
+        async function getReviewsFor(id) {
+            // Try server first
+            try {
+                const res = await fetch(`/api/reviews/${encodeURIComponent(id)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    return Array.isArray(data) ? data : [];
+                }
+            } catch (e) { /* ignore and fallback to local */ }
+            const all = readJSON(LS_REVIEWS, {});
+            return all[id] || [];
+        }
+
+        async function saveReviewFor(id, review) {
+            // Save locally (always)
+            try {
+                const all = readJSON(LS_REVIEWS, {});
+                all[id] = all[id] || [];
+                all[id].push(review);
+                writeJSON(LS_REVIEWS, all);
+            } catch (e) { /* ignore */ }
+
+            // Try to send to server (best-effort)
+            try {
+                await fetch('/api/reviews', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(Object.assign({ id }, review))
+                });
+            } catch (e) { /* ignore network errors */ }
+        }
+
+        // Review panel interactions
+        const reviewPanel = document.getElementById('review-panel');
+        const reviewListEl = document.getElementById('review-list');
+        const reviewTitleEl = document.getElementById('review-title');
+        const reviewTextEl = document.getElementById('review-text');
+        const reviewNickEl = document.getElementById('review-nickname');
+        const submitReviewBtn = document.getElementById('submit-review');
+        const closeReviewBtn = document.getElementById('close-review');
+        let currentReviewTarget = null;
+
+        const tabReviews = document.getElementById('tab-reviews');
+        const tabChat = document.getElementById('tab-chat');
+        const chatSection = document.getElementById('chat-section');
+        const reviewSection = document.getElementById('review-section');
+        const chatListEl = document.getElementById('chat-list');
+        const chatTextEl = document.getElementById('chat-text');
+        const chatNickEl = document.getElementById('chat-nickname');
+        const sendChatBtn = document.getElementById('send-chat');
+        let currentChatTarget = null;
+
+        function renderReviewPanel(id, name, venue) {
+            currentReviewTarget = id;
+            currentChatTarget = id;
+            reviewTitleEl.textContent = `Reseñas y Chat · ${name || venue || id}`;
+            renderReviewsList(id);
+            renderChatList(id);
+            switchPanel('reviews');
+            reviewPanel.style.display = 'block';
+            reviewPanel.setAttribute('aria-hidden','false');
+        }
+
+        function switchPanel(panel) {
+            if (panel === 'reviews') {
+                reviewSection.classList.add('active');
+                chatSection.classList.remove('active');
+                tabReviews.classList.add('active');
+                tabChat.classList.remove('active');
+            } else {
+                reviewSection.classList.remove('active');
+                chatSection.classList.add('active');
+                tabReviews.classList.remove('active');
+                tabChat.classList.add('active');
+            }
+        }
+
+        function renderReviewsList(id) {
+            getReviewsFor(id).then(reviews => {
+                if (!reviews.length) {
+                    reviewListEl.innerHTML = `<div style="color:#99aabb;padding:8px">Aún no hay reseñas. Sé el primero.</div>`;
+                } else {
+                    reviewListEl.innerHTML = reviews.slice().reverse().map(r => `
+                        <div class="review-item">
+                            <div style="font-size:0.9rem;color:#cfefff;font-weight:600">${r.nickname ? r.nickname : 'Anónimo'} <span style="font-size:0.8rem;color:#99aabb">· ${new Date(r.ts).toLocaleString()}</span></div>
+                            <div style="margin-top:6px;color:#e8f3ff">${escapeHtml(r.text)}</div>
+                            <div style="margin-top:6px">${(r.emojis||[]).map(e=>`<span style="margin-right:6px">${e}</span>`).join('')}</div>
+                        </div>
+                    `).join('');
+                }
+            }).catch(() => {
+                reviewListEl.innerHTML = `<div style="color:#ffbb88;padding:8px">No se pudieron cargar las reseñas.</div>`;
+            });
+        }
+
+        async function renderChatList(id) {
+            currentChatTarget = id;
+            try {
+                const res = await fetch(`/api/chat/${encodeURIComponent(id)}`);
+                if (!res.ok) throw new Error('Error chat');
+                const messages = await res.json();
+                if (!Array.isArray(messages) || !messages.length) {
+                    chatListEl.innerHTML = `<div style="color:#99aabb;padding:8px">No hay mensajes aún. Inicia la conversación.</div>`;
+                    return;
+                }
+                chatListEl.innerHTML = messages.slice().reverse().map(msg => `
+                    <div class="chat-message">
+                        <div class="chat-meta">${msg.nickname || 'Anónimo'} · ${new Date(msg.ts).toLocaleString()}</div>
+                        <div>${escapeHtml(msg.text)}</div>
+                    </div>
+                `).join('');
+            } catch (e) {
+                chatListEl.innerHTML = `<div style="color:#ffbb88;padding:8px">No se pudo cargar el chat.</div>`;
+            }
+        }
+
+        function closeReviewPanel() {
+            currentReviewTarget = null;
+            currentChatTarget = null;
+            reviewPanel.style.display = 'none';
+            reviewPanel.setAttribute('aria-hidden','true');
+        }
+
+        function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+        // Emoji picker
+        document.querySelectorAll('.emoji-picker button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                reviewTextEl.value = (reviewTextEl.value + ' ' + btn.dataset.emoji).trim();
+            });
+        });
+
+        submitReviewBtn.addEventListener('click', () => {
+            if (!currentReviewTarget) return;
+            const text = (reviewTextEl.value || '').trim().slice(0,100);
+            if (!text) return alert('Escribe una reseña de hasta 100 caracteres');
+            const nickname = (reviewNickEl.value || '').trim();
+            const allowed = ['🎧','🔥','💣','🤩','😴','👎'];
+            const emojis = allowed.filter(e => text.includes(e));
+            const review = { text, emojis, nickname: nickname || null, ts: Date.now() };
+            saveReviewFor(currentReviewTarget, review);
+            renderReviewsList(currentReviewTarget);
+            reviewTextEl.value = '';
+        });
+
+        sendChatBtn.addEventListener('click', async () => {
+            if (!currentChatTarget) return;
+            const text = (chatTextEl.value || '').trim().slice(0,280);
+            if (!text) return alert('Escribe un mensaje de chat');
+            const nickname = (chatNickEl.value || '').trim() || 'Anónimo';
+            try {
+                const res = await fetch(`/api/chat/${encodeURIComponent(currentChatTarget)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, nickname, ts: Date.now() })
+                });
+                if (!res.ok) throw new Error('No se pudo enviar el mensaje');
+                chatTextEl.value = '';
+                renderChatList(currentChatTarget);
+            } catch (e) {
+                alert('Error enviando mensaje');
+            }
+        });
+
+        tabReviews.addEventListener('click', () => switchPanel('reviews'));
+        tabChat.addEventListener('click', () => switchPanel('chat'));
+        closeReviewBtn.addEventListener('click', closeReviewPanel);
+
+        window.openReviewPanel = function(id, name, venue) { renderReviewPanel(id, name, venue); };
+        window.openChatPanel = function(id, name, venue) { renderReviewPanel(id, name, venue); switchPanel('chat'); };
+
+        // Exponer helpers para popups
+        window.toggleFollowDJ = function(id) {
+            const res = toggleFollowDJ(id);
+            renderDJList(allDJs, currentFilter);
+            renderMarkers(allDJs);
+            return res;
+        };
+        window.toggleFollowVenue = function(venue) {
+            const res = toggleFollowVenue(venue);
+            renderDJList(allDJs, currentFilter);
+            renderMarkers(allDJs);
+            return res;
+        };
 
         // ============================================================
         //  REFERENCIAS DOM
@@ -793,6 +1111,7 @@
                 }
                 if (currentFilter === 'now') return dj.isActive;
                 if (currentFilter === 'next') return !dj.isActive && isUpcomingDJ(dj);
+                if (currentFilter === 'favorites') return isDJFollowed(dj.id) || isVenueFollowed(dj.venue);
                 return true;
             });
         }
@@ -820,13 +1139,27 @@
                 return;
             }
 
+            // Orden: activos primero, luego favoritos, luego el resto
+            const sorted = filtered.slice().sort((a,b) => {
+                if (a.isActive !== b.isActive) return (a.isActive ? -1 : 1);
+                const aFav = (isDJFollowed(a.id) || isVenueFollowed(a.venue));
+                const bFav = (isDJFollowed(b.id) || isVenueFollowed(b.venue));
+                if (aFav !== bFav) return (aFav ? -1 : 1);
+                return String(a.name || '').localeCompare(String(b.name || ''));
+            });
+
             let html = '';
-            for (const dj of filtered) {
+            for (const dj of sorted) {
                 const activeClass = dj.isActive ? 'active' : '';
                 const upcomingLabel = (!dj.isActive && isUpcomingDJ(dj)) ? '<span class="badge">⏳ PRÓXIMO</span>' : '';
                 const badge = dj.isActive ? '<span class="badge">🔴 EN VIVO</span>' : upcomingLabel;
                 const icon = dj.isActive ? 'fa-headphones' : 'fa-compact-disc';
                 const avatarStyle = `background:${dj.color};box-shadow:0 0 0 2px rgba(255,255,255,0.12);`;
+
+                const isFav = isDJFollowed(dj.id) || isVenueFollowed(dj.venue);
+                const followIconClass = isFav ? 'fas fa-star' : 'far fa-star';
+                const followColor = isFav ? '#ffd700' : '#666';
+                const followBtn = `<span class="follow-btn" data-dj-id="${dj.id}" data-venue="${encodeURIComponent(dj.venue || '')}" title="${isFav ? 'Dejar de seguir' : 'Seguir'}" style="cursor:pointer;color:${followColor};margin-right:8px;"><i class="${followIconClass}"></i></span>`;
 
                 const timeParts = [];
                 if (dj.start) timeParts.push(dj.start);
@@ -836,6 +1169,7 @@
                 const noCoordsHint = (!Number.isFinite(dj.lat) || !Number.isFinite(dj.lng)) ? `<div class="detail-tag"><i class="fas fa-exclamation-circle"></i> Sin coordenadas exactas</div>` : '';
 
                 const gotoMapBtn = (Number.isFinite(dj.lat) && Number.isFinite(dj.lng)) ? `<span class="goto-map" data-lat="${dj.lat}" data-lng="${dj.lng}" title="Centrar en mapa"><i class="fas fa-crosshairs"></i></span>` : '';
+                const chatBtn = `<span class="chat-btn" data-dj-id="${dj.id}" title="Abrir chat del evento" style="cursor:pointer;color:#9fbfdc;margin-right:8px;"><i class="fas fa-comments"></i></span>`;
 
                 html += `
                     <div class="dj-item ${activeClass}" data-dj-id="${dj.id}">
@@ -847,8 +1181,12 @@
                             ${styleText}
                             ${noCoordsHint}
                         </div>
-                        ${badge}
-                        ${gotoMapBtn}
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            ${followBtn}
+                            ${chatBtn}
+                            ${badge}
+                            ${gotoMapBtn}
+                        </div>
                     </div>
                 `;
             }
@@ -865,6 +1203,14 @@
                 });
             });
 
+            container.querySelectorAll('.chat-btn').forEach(el => {
+                el.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const id = this.dataset.djId;
+                    if (id) window.openChatPanel(id, '', '');
+                });
+            });
+
             container.querySelectorAll('.dj-item').forEach(item => {
                 item.addEventListener('click', () => {
                     const id = item.dataset.djId;
@@ -873,6 +1219,20 @@
                         map.setView(marker.getLatLng(), 15, { animate: true });
                         marker.openPopup();
                     }
+                });
+            });
+
+            // Follow button handlers
+            container.querySelectorAll('.follow-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const djId = btn.dataset.djId;
+                    const venue = decodeURIComponent(btn.dataset.venue || '');
+                    if (djId) toggleFollowDJ(djId);
+                    else if (venue) toggleFollowVenue(venue);
+                    // re-render to update ordering and icons
+                    renderDJList(allDJs, currentFilter);
+                    renderMarkers(allDJs);
                 });
             });
         }
@@ -889,6 +1249,7 @@
             const filtered = filterDJs(djs);
 
             for (const dj of filtered) {
+                const isFav = isDJFollowed(dj.id) || isVenueFollowed(dj.venue);
                 const isActive = dj.isActive;
                 const isUpcoming = !dj.isActive && isUpcomingDJ(dj);
                 const iconName = isActive ? 'fa-headphones' : (isUpcoming ? 'fa-music' : 'fa-compact-disc');
@@ -909,12 +1270,20 @@
                     const marker = L.marker([dj.lat, dj.lng], { icon: icon })
                         .addTo(markersLayer)
                         .bindPopup(`
-                            <strong>${dj.name}</strong><br>
-                            <span class="venue">${dj.venue}</span><br>
-                            <span class="time">${dj.start || ''} – ${dj.end || ''}</span><br>
-                            ${dj.style ? `<span style="color:#888;">${dj.style}</span>` : ''}
-                            ${isActive ? '<br><span style="color:#00ffaa; font-weight:bold;">🔴 EN VIVO AHORA</span>' : ''}
-                        `);
+                            `<strong>${dj.name}</strong><br>
+                                <span class="venue">${dj.venue}</span><br>
+                                <span class="time">${dj.start || ''} – ${dj.end || ''}</span><br>
+                                ${dj.style ? `<span style="color:#888;">${dj.style}</span>` : ''}
+                                ${isActive ? '<br><span style="color:#00ffaa; font-weight:bold;">🔴 EN VIVO AHORA</span>' : ''}
+                                <br>
+                                <a href="#" onclick="event.preventDefault(); window.toggleFollowDJ('${dj.id}');" style="color:#ffd700; text-decoration:none;">${isFav ? '⭐ Dejar de seguir' : '☆ Seguir'}</a>
+                                &nbsp;·&nbsp;
+                                <a href="#" onclick="event.preventDefault(); window.openReviewPanel('${dj.id}','${dj.name}','${dj.venue}');" style="color:#9fbfdc; text-decoration:none;">Ver reseñas</a>
+                                &nbsp;·&nbsp;
+                                <a href="#" onclick="event.preventDefault(); window.openChatPanel('${dj.id}','${dj.name}','${dj.venue}');" style="color:#9fbfdc; text-decoration:none;">Chat</a>
+                                &nbsp;·&nbsp;
+                                <a href="#" onclick="event.preventDefault(); window.openReviewPanel('${dj.id}','${dj.name}','${dj.venue}'); document.getElementById('review-text').focus();" style="color:#9fbfdc; text-decoration:none;">Dejar reseña</a>
+                            `);
 
                     if (isActive) {
                         L.circle([dj.lat, dj.lng], {
@@ -993,6 +1362,7 @@
             filterButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.filter === filter);
             });
+            try { localStorage.setItem(LS_LAST_FILTER, filter); } catch (e) {}
             if (allDJs.length) {
                 renderDJList(allDJs, filter);
                 renderMarkers(allDJs);
@@ -1004,10 +1374,20 @@
         // ============================================================
         function init() {
             initMap();
+            // Restaurar último filtro y búsqueda
+            try {
+                const lastSearch = localStorage.getItem(LS_LAST_SEARCH) || '';
+                const lastFilter = localStorage.getItem(LS_LAST_FILTER) || currentFilter;
+                if (lastSearch) searchInput.value = lastSearch;
+                currentFilter = lastFilter;
+                filterButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.filter === currentFilter));
+            } catch (e) { /* ignore */ }
+
             loadData();
 
             refreshBtn.addEventListener('click', loadData);
             searchInput.addEventListener('input', () => {
+                try { localStorage.setItem(LS_LAST_SEARCH, searchInput.value || ''); } catch (e) {}
                 if (allDJs.length) {
                     renderDJList(allDJs, currentFilter);
                     renderMarkers(allDJs);

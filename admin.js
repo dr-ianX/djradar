@@ -5,12 +5,16 @@
   const SUBMISSIONS_API = '/api/submissions';
   const APPROVE_SUBMISSION_API = '/api/admin/approveSubmission';
   const DELETE_SUBMISSION_API = '/api/admin/submission';
+  const REVIEWS_ADMIN_API = '/api/admin/reviews';
+  const CHATS_ADMIN_API = '/api/admin/chats';
 
   const tokenInput = document.getElementById('admin-token');
   const saveTokenBtn = document.getElementById('save-token');
   const refreshBtn = document.getElementById('refresh');
   const viewSheetBtn = document.getElementById('view-sheet');
   const viewSubmissionsBtn = document.getElementById('view-submissions');
+  const viewReviewsBtn = document.getElementById('view-reviews');
+  const viewChatsBtn = document.getElementById('view-chats');
   const tbody = document.getElementById('tbody');
   const searchInput = document.getElementById('search');
   const adminSummary = document.getElementById('admin-summary');
@@ -21,6 +25,8 @@
   let currentView = 'sheet';
   let currentRows = [];
   let currentSubmissions = [];
+  let currentReviews = {};
+  let currentChats = {};
 
   function getToken(){ return localStorage.getItem('dj_admin_token') || ''; }
   function setToken(t){ localStorage.setItem('dj_admin_token', t); }
@@ -61,6 +67,23 @@
         return;
       }
 
+      if (currentView === 'reviews') {
+        const reviews = await fetchReviewsAdmin();
+        currentReviews = reviews;
+        renderReviews(reviews);
+        adminSummary.textContent = `Reviews keys: ${Object.keys(reviews).length}`;
+        setSubmissionActionsVisibility(false);
+        return;
+      }
+      if (currentView === 'chats') {
+        const chats = await fetchChatsAdmin();
+        currentChats = chats;
+        renderChats(chats);
+        adminSummary.textContent = `Chat rooms: ${Object.keys(chats).length}`;
+        setSubmissionActionsVisibility(false);
+        return;
+      }
+
       const r = await fetch(SHEET_API + '?t=' + Date.now());
       if (!r.ok) throw new Error('No se pudo leer la hoja');
       const csv = await r.text();
@@ -89,6 +112,22 @@
     if (!token) throw new Error('Necesitas token admin para ver submissions');
     const r = await fetch(SUBMISSIONS_API, { headers: { 'x-admin-token': token } });
     if (!r.ok) throw new Error('No autorizado o error al leer submissions');
+    return await r.json();
+  }
+
+  async function fetchReviewsAdmin(){
+    const token = getToken();
+    if (!token) throw new Error('Necesitas token admin para ver reviews');
+    const r = await fetch(REVIEWS_ADMIN_API, { headers: { 'x-admin-token': token } });
+    if (!r.ok) throw new Error('No autorizado o error al leer reviews');
+    return await r.json();
+  }
+
+  async function fetchChatsAdmin(){
+    const token = getToken();
+    if (!token) throw new Error('Necesitas token admin para ver chats');
+    const r = await fetch(CHATS_ADMIN_API, { headers: { 'x-admin-token': token } });
+    if (!r.ok) throw new Error('No autorizado o error al leer chats');
     return await r.json();
   }
 
@@ -170,8 +209,50 @@
       tbody.appendChild(tr);
     }
   }
-
-  async function saveOverride(id, tr){
++
++  // Render reviews admin view
++  function renderReviews(reviewsObj){
++    const q = (searchInput.value||'').toLowerCase();
++    const keys = Object.keys(reviewsObj).filter(k => { if (!q) return true; return k.toLowerCase().includes(q) || (Array.isArray(reviewsObj[k]) && reviewsObj[k].some(rv => (rv.text||'').toLowerCase().includes(q) || (rv.nickname||'').toLowerCase().includes(q))); });
++    adminFilterSummary.textContent = `Mostrando ${keys.length} de ${Object.keys(reviewsObj).length} ids con reseñas`;
++    if (!keys.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">No hay reseñas</td></tr>'; return; }
++    tbody.innerHTML = '';
++    for (const id of keys){
++      const arr = reviewsObj[id] || [];
++      const tr = document.createElement('tr');
++      tr.innerHTML = `
++        <td><span class="badge">Reviews</span></td>
++        <td colspan="5">ID: ${id} · <span class="muted">${arr.length} reseñas</span></td>
++        <td></td>
++        <td class="controls"><button class="btn" data-id="${encodeURIComponent(id)}">Ver / Moderar</button></td>
++      `;
++      const btn = tr.querySelector('button');
++      btn.addEventListener('click', ()=> openReviewsModal(id, arr));
++      tbody.appendChild(tr);
++    }
++  }
++
++  function openReviewsModal(id, arr){
++    // Simple modal using prompt/confirm for now; build real modal if needed
++    const list = (arr || []).map((r,i)=> `${i}. ${r.nickname ? r.nickname + ': ' : ''}${r.text} (${new Date(r.ts).toLocaleString()})`).join('\n\n');
++    const action = prompt('Reseñas para ' + id + '\n\n' + list + '\n\nEscribe el número de la reseña a eliminar, o deja vacío para cancelar');
++    if (action === null || action.trim() === '') return;
++    const idx = parseInt(action,10);
++    if (!Number.isFinite(idx)) return alert('Índice inválido');
++    if (!confirm('Eliminar reseña #' + idx + ' de ' + id + '?')) return;
++    deleteReview(id, idx);
++  }
++
++  async function deleteReview(id, idx){
++    const token = getToken(); if (!token){ alert('Guarda token'); return; }
++    try{
++      const r = await fetch(REVIEWS_ADMIN_API + '/' + encodeURIComponent(id) + '/' + String(idx), { method: 'DELETE', headers: { 'x-admin-token': token } });
++      if (!r.ok) throw new Error('Error borrando review');
++      alert('Reseña eliminada');
++      loadData();
++    }catch(e){ alert('Error: '+e.message); }
++  }
+*** End Patch
     const token = getToken();
     if (!token){ alert('Guarda el token admin primero'); return; }
     const override = {
@@ -223,6 +304,8 @@
 
   viewSheetBtn.addEventListener('click', ()=> setView('sheet'));
   viewSubmissionsBtn.addEventListener('click', ()=> setView('submissions'));
+  viewReviewsBtn.addEventListener('click', ()=> setView('reviews'));
+  viewChatsBtn.addEventListener('click', ()=> setView('chats'));
   refreshBtn.addEventListener('click', loadData);
   searchInput.addEventListener('input', refreshView);
   bulkApproveBtn.addEventListener('click', approveAllSubmissions);
@@ -232,6 +315,8 @@
     currentView = view;
     viewSheetBtn.style.opacity = view === 'sheet' ? '1' : '0.6';
     viewSubmissionsBtn.style.opacity = view === 'submissions' ? '1' : '0.6';
+    viewReviewsBtn.style.opacity = view === 'reviews' ? '1' : '0.6';
+    viewChatsBtn.style.opacity = view === 'chats' ? '1' : '0.6';
     loadData();
   }
 
@@ -239,6 +324,12 @@
     if (currentView === 'submissions') {
       renderSubmissions(currentSubmissions);
       setSubmissionActionsVisibility(true);
+    } else if (currentView === 'reviews') {
+      renderReviews(currentReviews);
+      setSubmissionActionsVisibility(false);
+    } else if (currentView === 'chats') {
+      renderChats(currentChats);
+      setSubmissionActionsVisibility(false);
     } else {
       renderTable(currentRows);
       setSubmissionActionsVisibility(false);

@@ -193,6 +193,166 @@ function requireAdmin(req, res, next) {
 
 const OVERRIDES_FILE = path.join(__dirname, 'overrides.json');
 
+// -------------------- Reviews storage --------------------
+const REVIEWS_FILE = path.join(__dirname, 'data', 'reviews.json');
+
+function readReviews() {
+    try {
+        if (!fs.existsSync(path.dirname(REVIEWS_FILE))) fs.mkdirSync(path.dirname(REVIEWS_FILE), { recursive: true });
+        if (!fs.existsSync(REVIEWS_FILE)) return {};
+        const txt = fs.readFileSync(REVIEWS_FILE, 'utf8');
+        return txt ? JSON.parse(txt) : {};
+    } catch (e) {
+        console.error('Failed reading reviews:', e);
+        return {};
+    }
+}
+
+function writeReviews(obj) {
+    try {
+        if (!fs.existsSync(path.dirname(REVIEWS_FILE))) fs.mkdirSync(path.dirname(REVIEWS_FILE), { recursive: true });
+        fs.writeFileSync(REVIEWS_FILE, JSON.stringify(obj, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('Failed writing reviews:', e);
+        return false;
+    }
+}
+
+app.get('/api/reviews/:id', (req, res) => {
+    const id = req.params.id;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    const all = readReviews();
+    const arr = Array.isArray(all[id]) ? all[id] : [];
+    res.json(arr);
+});
+
+app.post('/api/reviews', (req, res) => {
+    const body = req.body || {};
+    const id = body.id;
+    const text = typeof body.text === 'string' ? body.text.slice(0,100) : '';
+    const emojis = Array.isArray(body.emojis) ? body.emojis : [];
+    const nickname = body.nickname ? String(body.nickname) : null;
+    const ts = body.ts || Date.now();
+
+    if (!id || !text) return res.status(400).json({ error: 'Missing id or text' });
+
+    const all = readReviews();
+    all[id] = all[id] || [];
+    all[id].push({ text, emojis, nickname, ts });
+    const ok = writeReviews(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
+// -------------------- Chats storage --------------------
+const CHATS_FILE = path.join(__dirname, 'data', 'chats.json');
+
+function readChats() {
+    try {
+        if (!fs.existsSync(path.dirname(CHATS_FILE))) fs.mkdirSync(path.dirname(CHATS_FILE), { recursive: true });
+        if (!fs.existsSync(CHATS_FILE)) return {};
+        const txt = fs.readFileSync(CHATS_FILE, 'utf8');
+        return txt ? JSON.parse(txt) : {};
+    } catch (e) {
+        console.error('Failed reading chats:', e);
+        return {};
+    }
+}
+
+function writeChats(obj) {
+    try {
+        if (!fs.existsSync(path.dirname(CHATS_FILE))) fs.mkdirSync(path.dirname(CHATS_FILE), { recursive: true });
+        fs.writeFileSync(CHATS_FILE, JSON.stringify(obj, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('Failed writing chats:', e);
+        return false;
+    }
+}
+
+app.get('/api/chat/:id', (req, res) => {
+    const id = req.params.id;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    const all = readChats();
+    const arr = Array.isArray(all[id]) ? all[id] : [];
+    res.json(arr);
+});
+
+app.post('/api/chat/:id', (req, res) => {
+    const id = req.params.id;
+    const body = req.body || {};
+    const text = typeof body.text === 'string' ? body.text.trim().slice(0, 280) : '';
+    const nickname = body.nickname ? String(body.nickname).slice(0, 24) : 'Anónimo';
+    const ts = body.ts || Date.now();
+
+    if (!id || !text) return res.status(400).json({ error: 'Missing id or text' });
+
+    const all = readChats();
+    all[id] = all[id] || [];
+    all[id].push({ text, nickname, ts });
+    const ok = writeChats(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
+// -------------------- Admin: reviews moderation --------------------
+app.get('/api/admin/reviews', requireAdmin, (req, res) => {
+    const all = readReviews();
+    res.json(all);
+});
+
+// Delete a single review by id and index
+app.delete('/api/admin/reviews/:id/:idx', requireAdmin, (req, res) => {
+    const id = req.params.id;
+    const idx = parseInt(req.params.idx, 10);
+    if (!id || !Number.isFinite(idx)) return res.status(400).json({ error: 'Missing id or idx' });
+    const all = readReviews();
+    if (!Array.isArray(all[id]) || idx < 0 || idx >= all[id].length) return res.status(404).json({ error: 'Review not found' });
+    all[id].splice(idx, 1);
+    const ok = writeReviews(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
+// Delete all reviews for an id
+app.delete('/api/admin/reviews/:id', requireAdmin, (req, res) => {
+    const id = req.params.id;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    const all = readReviews();
+    if (all[id]) delete all[id];
+    const ok = writeReviews(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
+app.get('/api/admin/chats', requireAdmin, (req, res) => {
+    const all = readChats();
+    res.json(all);
+});
+
+app.delete('/api/admin/chats/:id/:idx', requireAdmin, (req, res) => {
+    const id = req.params.id;
+    const idx = parseInt(req.params.idx, 10);
+    if (!id || !Number.isFinite(idx)) return res.status(400).json({ error: 'Missing id or idx' });
+    const all = readChats();
+    if (!Array.isArray(all[id]) || idx < 0 || idx >= all[id].length) return res.status(404).json({ error: 'Chat message not found' });
+    all[id].splice(idx, 1);
+    const ok = writeChats(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
+app.delete('/api/admin/chats/:id', requireAdmin, (req, res) => {
+    const id = req.params.id;
+    if (!id) return res.status(400).json({ error: 'Missing id' });
+    const all = readChats();
+    if (all[id]) delete all[id];
+    const ok = writeChats(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
 function readOverrides() {
     try {
         if (!fs.existsSync(OVERRIDES_FILE)) return {};
