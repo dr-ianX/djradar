@@ -285,12 +285,13 @@ app.post('/api/chat/:id', (req, res) => {
     const text = typeof body.text === 'string' ? body.text.trim().slice(0, 280) : '';
     const nickname = body.nickname ? String(body.nickname).slice(0, 24) : 'Anónimo';
     const ts = body.ts || Date.now();
+    const isDJ = body.isDJ === true;
 
     if (!id || !text) return res.status(400).json({ error: 'Missing id or text' });
 
     const all = readChats();
     all[id] = all[id] || [];
-    all[id].push({ text, nickname, ts });
+    all[id].push({ text, nickname, ts, isDJ });
     const ok = writeChats(all);
     if (!ok) return res.status(500).json({ error: 'Failed to save' });
     res.json({ ok: true });

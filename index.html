@@ -598,6 +598,8 @@
         //  RESEÑAS / localStorage
         // ============================================================
         const LS_REVIEWS = 'userReviews';
+        const LS_REVIEW_LIKES = 'reviewLikes';
+        
         async function getReviewsFor(id) {
             // Try server first
             try {
@@ -628,6 +630,22 @@
                     body: JSON.stringify(Object.assign({ id }, review))
                 });
             } catch (e) { /* ignore network errors */ }
+        }
+
+        function getReviewLikes() {
+            return readJSON(LS_REVIEW_LIKES, {});
+        }
+
+        function isReviewLiked(reviewId) {
+            const likes = getReviewLikes();
+            return likes[reviewId] || false;
+        }
+
+        function toggleReviewLike(reviewId) {
+            const likes = getReviewLikes();
+            likes[reviewId] = !likes[reviewId];
+            writeJSON(LS_REVIEW_LIKES, likes);
+            return likes[reviewId];
         }
 
         // Review panel interactions
@@ -680,13 +698,23 @@
                 if (!reviews.length) {
                     reviewListEl.innerHTML = `<div style="color:#99aabb;padding:8px">Aún no hay reseñas. Sé el primero.</div>`;
                 } else {
-                    reviewListEl.innerHTML = reviews.slice().reverse().map(r => `
+                    reviewListEl.innerHTML = reviews.slice().reverse().map((r, idx) => {
+                        const reviewId = `${id}_${idx}`;
+                        const liked = isReviewLiked(reviewId);
+                        const likeIcon = liked ? 'fas fa-heart' : 'far fa-heart';
+                        const likeColor = liked ? '#ff6b6b' : '#666';
+                        return `
                         <div class="review-item">
                             <div style="font-size:0.9rem;color:#cfefff;font-weight:600">${r.nickname ? r.nickname : 'Anónimo'} <span style="font-size:0.8rem;color:#99aabb">· ${new Date(r.ts).toLocaleString()}</span></div>
                             <div style="margin-top:6px;color:#e8f3ff">${escapeHtml(r.text)}</div>
                             <div style="margin-top:6px">${(r.emojis||[]).map(e=>`<span style="margin-right:6px">${e}</span>`).join('')}</div>
+                            <div style="margin-top:6px">
+                                <button class="like-btn" data-review-id="${reviewId}" style="background:transparent;border:none;color:${likeColor};cursor:pointer;font-size:0.9rem;padding:0;">
+                                    <i class="${likeIcon}"></i> Me gusta
+                                </button>
+                            </div>
                         </div>
-                    `).join('');
+                    `}).join('');
                 }
             }).catch(() => {
                 reviewListEl.innerHTML = `<div style="color:#ffbb88;padding:8px">No se pudieron cargar las reseñas.</div>`;
@@ -703,12 +731,16 @@
                     chatListEl.innerHTML = `<div style="color:#99aabb;padding:8px">No hay mensajes aún. Inicia la conversación.</div>`;
                     return;
                 }
-                chatListEl.innerHTML = messages.slice().reverse().map(msg => `
-                    <div class="chat-message">
-                        <div class="chat-meta">${msg.nickname || 'Anónimo'} · ${new Date(msg.ts).toLocaleString()}</div>
+                chatListEl.innerHTML = messages.slice().reverse().map(msg => {
+                    const isDJ = msg.isDJ === true;
+                    const djStyle = isDJ ? 'background:#00d4ff22;border:1px solid #00d4ff44;' : '';
+                    const djLabel = isDJ ? '<span style="color:#00d4ff;font-size:0.75rem;margin-left:6px;">🎧 DJ</span>' : '';
+                    return `
+                    <div class="chat-message" style="${djStyle}">
+                        <div class="chat-meta">${msg.nickname || 'Anónimo'}${djLabel} · ${new Date(msg.ts).toLocaleString()}</div>
                         <div>${escapeHtml(msg.text)}</div>
                     </div>
-                `).join('');
+                `}).join('');
             } catch (e) {
                 chatListEl.innerHTML = `<div style="color:#ffbb88;padding:8px">No se pudo cargar el chat.</div>`;
             }
@@ -728,6 +760,18 @@
             btn.addEventListener('click', () => {
                 reviewTextEl.value = (reviewTextEl.value + ' ' + btn.dataset.emoji).trim();
             });
+        });
+
+        // Like buttons for reviews (delegated event listener)
+        reviewListEl.addEventListener('click', (e) => {
+            const likeBtn = e.target.closest('.like-btn');
+            if (likeBtn) {
+                const reviewId = likeBtn.dataset.reviewId;
+                if (reviewId) {
+                    toggleReviewLike(reviewId);
+                    renderReviewsList(currentReviewTarget);
+                }
+            }
         });
 
         submitReviewBtn.addEventListener('click', () => {
