@@ -52,15 +52,6 @@ La aplicación usa un backend Express simple que:
 - Reemplaza el placeholder `__SHEET_URL__` con la URL real
 - Mantiene la URL segura fuera del código fuente público
 
-## 📱 Uso Local
-
-1. Clona el repositorio
-2. Instala dependencias: `npm install`
-3. Configura variable de entorno:
-   - Windows: `set SHEET_URL=tu_url_csv`
-   - Mac/Linux: `export SHEET_URL=tu_url_csv`
-4. Inicia el servidor: `npm start`
-5. Abre http://localhost:3000 en tu navegador
 
 ## 🎨 Tecnologías
 
@@ -114,10 +105,3 @@ El tema usa principalmente:
 - [ ] Notificaciones push
 - [ ] Integración con redes sociales
 
-## 📄 Licencia
-
-MIT License - Siéntete libre de usar este proyecto para tus propios fines.
-
-## 👥 Contribuciones
-
-Las contribuciones son bienvenidas. Por favor, abre un issue o pull request en GitHub.

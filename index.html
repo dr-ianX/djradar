@@ -1314,7 +1314,7 @@
                     const marker = L.marker([dj.lat, dj.lng], { icon: icon })
                         .addTo(markersLayer)
                         .bindPopup(`
-                            `<strong>${dj.name}</strong><br>
+                            <strong>${dj.name}</strong><br>
                                 <span class="venue">${dj.venue}</span><br>
                                 <span class="time">${dj.start || ''} – ${dj.end || ''}</span><br>
                                 ${dj.style ? `<span style="color:#888;">${dj.style}</span>` : ''}
