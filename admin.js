@@ -7,7 +7,6 @@
   const DELETE_SUBMISSION_API = '/api/admin/submission';
   const REVIEWS_ADMIN_API = '/api/admin/reviews';
   const CHATS_ADMIN_API = '/api/admin/chats';
-
   const tokenInput = document.getElementById('admin-token');
   const saveTokenBtn = document.getElementById('save-token');
   const refreshBtn = document.getElementById('refresh');
@@ -27,14 +26,11 @@
   let currentSubmissions = [];
   let currentReviews = {};
   let currentChats = {};
-
   function getToken(){ return localStorage.getItem('dj_admin_token') || ''; }
   function setToken(t){ localStorage.setItem('dj_admin_token', t); }
   tokenInput.value = getToken();
   saveTokenBtn.addEventListener('click', ()=>{ setToken(tokenInput.value.trim()); alert('Token guardado en localStorage'); });
-
   saveTokenBtn.title = 'Guarda el token que pusiste en la variable de entorno ADMIN_PASS';
-
   function parseCSV(csvText){
     const lines = csvText.split(/\r?\n/).filter(l=>l.trim()!='');
     if (lines.length<2) return [];
@@ -49,10 +45,8 @@
     for (let i=1;i<lines.length;i++){ const row = splitRow(lines[i]); if (row.length < headers.length) continue; const obj={}; headers.forEach((h,idx)=> obj[h]=row[idx]||''); data.push(obj); }
     return data;
   }
-
   function normalizeText(value){ return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,''); }
   function makeId(a,b,c,d){ return encodeURIComponent((normalizeText(a||'') + '_' + normalizeText(b||'') + '_' + String(c||'') + '_' + String(d||'')).replace(/[^a-z0-9_\-]/g,'')); }
-
   async function loadData(){
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">Cargando...</td></tr>';
     adminSummary.textContent = 'Cargando...';
@@ -66,7 +60,6 @@
         setSubmissionActionsVisibility(true);
         return;
       }
-
       if (currentView === 'reviews') {
         const reviews = await fetchReviewsAdmin();
         currentReviews = reviews;
@@ -83,7 +76,6 @@
         setSubmissionActionsVisibility(false);
         return;
       }
-
       const r = await fetch(SHEET_API + '?t=' + Date.now());
       if (!r.ok) throw new Error('No se pudo leer la hoja');
       const csv = await r.text();
@@ -96,7 +88,6 @@
       setSubmissionActionsVisibility(false);
     }catch(e){ tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#ffbb88;padding:18px">'+(e.message||e)+'</td></tr>'; adminSummary.textContent = 'Error cargando datos'; setSubmissionActionsVisibility(false); }
   }
-
   async function fetchOverrides(){
     const token = getToken();
     if (!token) return {};
@@ -106,7 +97,6 @@
       return await r.json();
     }catch(e){ console.warn('Overrides load failed', e); return {}; }
   }
-
   async function fetchSubmissions(){
     const token = getToken();
     if (!token) throw new Error('Necesitas token admin para ver submissions');
@@ -114,7 +104,6 @@
     if (!r.ok) throw new Error('No autorizado o error al leer submissions');
     return await r.json();
   }
-
   async function fetchReviewsAdmin(){
     const token = getToken();
     if (!token) throw new Error('Necesitas token admin para ver reviews');
@@ -122,7 +111,6 @@
     if (!r.ok) throw new Error('No autorizado o error al leer reviews');
     return await r.json();
   }
-
   async function fetchChatsAdmin(){
     const token = getToken();
     if (!token) throw new Error('Necesitas token admin para ver chats');
@@ -130,7 +118,6 @@
     if (!r.ok) throw new Error('No autorizado o error al leer chats');
     return await r.json();
   }
-
   function mergeOverrides(rawData, overrides){
     const rows = rawData.map(row => {
       const id = makeId(row['DJ']||row['dj']||row['Name']||row['name']||'', row['Venue']||row['venue']||'', row['Fecha']||row['Date']||'', row['Inicio']||row['Start']||row['hora inicio']||'');
@@ -144,7 +131,6 @@
     });
     return rows;
   }
-
   function renderTable(rows){
     const q = (searchInput.value||'').toLowerCase();
     const filtered = rows.filter(r=>{
@@ -177,7 +163,6 @@
       tbody.appendChild(tr);
     }
   }
-
   function renderSubmissions(rows){
     const q = (searchInput.value||'').toLowerCase();
     const filtered = rows.filter(r=>{
@@ -209,50 +194,89 @@
       tbody.appendChild(tr);
     }
   }
-+
-+  // Render reviews admin view
-+  function renderReviews(reviewsObj){
-+    const q = (searchInput.value||'').toLowerCase();
-+    const keys = Object.keys(reviewsObj).filter(k => { if (!q) return true; return k.toLowerCase().includes(q) || (Array.isArray(reviewsObj[k]) && reviewsObj[k].some(rv => (rv.text||'').toLowerCase().includes(q) || (rv.nickname||'').toLowerCase().includes(q))); });
-+    adminFilterSummary.textContent = `Mostrando ${keys.length} de ${Object.keys(reviewsObj).length} ids con reseñas`;
-+    if (!keys.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">No hay reseñas</td></tr>'; return; }
-+    tbody.innerHTML = '';
-+    for (const id of keys){
-+      const arr = reviewsObj[id] || [];
-+      const tr = document.createElement('tr');
-+      tr.innerHTML = `
-+        <td><span class="badge">Reviews</span></td>
-+        <td colspan="5">ID: ${id} · <span class="muted">${arr.length} reseñas</span></td>
-+        <td></td>
-+        <td class="controls"><button class="btn" data-id="${encodeURIComponent(id)}">Ver / Moderar</button></td>
-+      `;
-+      const btn = tr.querySelector('button');
-+      btn.addEventListener('click', ()=> openReviewsModal(id, arr));
-+      tbody.appendChild(tr);
-+    }
-+  }
-+
-+  function openReviewsModal(id, arr){
-+    // Simple modal using prompt/confirm for now; build real modal if needed
-+    const list = (arr || []).map((r,i)=> `${i}. ${r.nickname ? r.nickname + ': ' : ''}${r.text} (${new Date(r.ts).toLocaleString()})`).join('\n\n');
-+    const action = prompt('Reseñas para ' + id + '\n\n' + list + '\n\nEscribe el número de la reseña a eliminar, o deja vacío para cancelar');
-+    if (action === null || action.trim() === '') return;
-+    const idx = parseInt(action,10);
-+    if (!Number.isFinite(idx)) return alert('Índice inválido');
-+    if (!confirm('Eliminar reseña #' + idx + ' de ' + id + '?')) return;
-+    deleteReview(id, idx);
-+  }
-+
-+  async function deleteReview(id, idx){
-+    const token = getToken(); if (!token){ alert('Guarda token'); return; }
-+    try{
-+      const r = await fetch(REVIEWS_ADMIN_API + '/' + encodeURIComponent(id) + '/' + String(idx), { method: 'DELETE', headers: { 'x-admin-token': token } });
-+      if (!r.ok) throw new Error('Error borrando review');
-+      alert('Reseña eliminada');
-+      loadData();
-+    }catch(e){ alert('Error: '+e.message); }
-+  }
-*** End Patch
+  // Render reviews admin view
+  function renderReviews(reviewsObj){
+    const q = (searchInput.value||'').toLowerCase();
+    const keys = Object.keys(reviewsObj).filter(k => { if (!q) return true; return k.toLowerCase().includes(q) || (Array.isArray(reviewsObj[k]) && reviewsObj[k].some(rv => (rv.text||'').toLowerCase().includes(q) || (rv.nickname||'').toLowerCase().includes(q))); });
+    adminFilterSummary.textContent = `Mostrando ${keys.length} de ${Object.keys(reviewsObj).length} ids con reseñas`;
+    if (!keys.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">No hay reseñas</td></tr>'; return; }
+    tbody.innerHTML = '';
+    for (const id of keys){
+      const arr = reviewsObj[id] || [];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="badge">Reviews</span></td>
+        <td colspan="5">ID: ${id} · <span class="muted">${arr.length} reseñas</span></td>
+        <td></td>
+        <td class="controls"><button class="btn" data-id="${encodeURIComponent(id)}">Ver / Moderar</button></td>
+      `;
+      const btn = tr.querySelector('button');
+      btn.addEventListener('click', ()=> openReviewsModal(id, arr));
+      tbody.appendChild(tr);
+    }
+  }
+
+  function renderChats(chatsObj){
+    const q = (searchInput.value||'').toLowerCase();
+    const keys = Object.keys(chatsObj).filter(k => { if (!q) return true; return k.toLowerCase().includes(q) || (Array.isArray(chatsObj[k]) && chatsObj[k].some(msg => (msg.text||'').toLowerCase().includes(q) || (msg.nickname||'').toLowerCase().includes(q))); });
+    adminFilterSummary.textContent = `Mostrando ${keys.length} de ${Object.keys(chatsObj).length} salas de chat`;
+    if (!keys.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8899aa;padding:18px">No hay chats</td></tr>'; return; }
+    tbody.innerHTML = '';
+    for (const id of keys){
+      const arr = chatsObj[id] || [];
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><span class="badge">Chat</span></td>
+        <td colspan="5">ID: ${id} · <span class="muted">${arr.length} mensajes</span></td>
+        <td></td>
+        <td class="controls"><button class="btn" data-id="${encodeURIComponent(id)}">Ver / Moderar</button></td>
+      `;
+      const btn = tr.querySelector('button');
+      btn.addEventListener('click', ()=> openChatsModal(id, arr));
+      tbody.appendChild(tr);
+    }
+  }
+
+  function openChatsModal(id, arr){
+    const list = (arr || []).map((r,i)=> `${i}. ${r.nickname ? r.nickname + ': ' : ''}${r.text} (${new Date(r.ts).toLocaleString()})`).join('\n\n');
+    const action = prompt('Chat para ' + id + '\n\n' + list + '\n\nEscribe el número del mensaje a eliminar, o deja vacío para cancelar');
+    if (action === null || action.trim() === '') return;
+    const idx = parseInt(action,10);
+    if (!Number.isFinite(idx)) return alert('Índice inválido');
+    if (!confirm('Eliminar mensaje #' + idx + ' de ' + id + '?')) return;
+    deleteChat(id, idx);
+  }
+
+  async function deleteChat(id, idx){
+    const token = getToken(); if (!token){ alert('Guarda token'); return; }
+    try{
+      const r = await fetch(CHATS_ADMIN_API + '/' + encodeURIComponent(id) + '/' + String(idx), { method: 'DELETE', headers: { 'x-admin-token': token } });
+      if (!r.ok) throw new Error('Error borrando chat');
+      alert('Mensaje eliminado');
+      loadData();
+    }catch(e){ alert('Error: '+e.message); }
+  }
+  function openReviewsModal(id, arr){
+    // Simple modal using prompt/confirm for now; build real modal if needed
+    const list = (arr || []).map((r,i)=> `${i}. ${r.nickname ? r.nickname + ': ' : ''}${r.text} (${new Date(r.ts).toLocaleString()})`).join('\n\n');
+    const action = prompt('Reseñas para ' + id + '\n\n' + list + '\n\nEscribe el número de la reseña a eliminar, o deja vacío para cancelar');
+    if (action === null || action.trim() === '') return;
+    const idx = parseInt(action,10);
+    if (!Number.isFinite(idx)) return alert('Índice inválido');
+    if (!confirm('Eliminar reseña #' + idx + ' de ' + id + '?')) return;
+    deleteReview(id, idx);
+  }
+  async function deleteReview(id, idx){
+    const token = getToken(); if (!token){ alert('Guarda token'); return; }
+    try{
+      const r = await fetch(REVIEWS_ADMIN_API + '/' + encodeURIComponent(id) + '/' + String(idx), { method: 'DELETE', headers: { 'x-admin-token': token } });
+      if (!r.ok) throw new Error('Error borrando review');
+      alert('Reseña eliminada');
+      loadData();
+    }catch(e){ alert('Error: '+e.message); }
+  }
+
+  async function saveOverride(id, tr){
     const token = getToken();
     if (!token){ alert('Guarda el token admin primero'); return; }
     const override = {
@@ -279,7 +303,6 @@
       alert('Override eliminado'); loadData();
     }catch(e){ alert('Error: '+e.message); }
   }
-
   async function approveSubmission(id){
     const token = getToken(); if (!token){ alert('Guarda token'); return; }
     try{
@@ -291,7 +314,6 @@
       alert('Submission aprobada'); loadData();
     }catch(e){ alert('Error: '+e.message); }
   }
-
   async function deleteSubmission(id){
     const token = getToken(); if (!token){ alert('Guarda token'); return; }
     if (!confirm('Eliminar submission?')) return;
@@ -301,7 +323,6 @@
       alert('Submission eliminada'); loadData();
     }catch(e){ alert('Error: '+e.message); }
   }
-
   viewSheetBtn.addEventListener('click', ()=> setView('sheet'));
   viewSubmissionsBtn.addEventListener('click', ()=> setView('submissions'));
   viewReviewsBtn.addEventListener('click', ()=> setView('reviews'));
@@ -310,7 +331,6 @@
   searchInput.addEventListener('input', refreshView);
   bulkApproveBtn.addEventListener('click', approveAllSubmissions);
   bulkDeleteBtn.addEventListener('click', deleteAllSubmissions);
-
   function setView(view){
     currentView = view;
     viewSheetBtn.style.opacity = view === 'sheet' ? '1' : '0.6';
@@ -319,7 +339,6 @@
     viewChatsBtn.style.opacity = view === 'chats' ? '1' : '0.6';
     loadData();
   }
-
   function refreshView(){
     if (currentView === 'submissions') {
       renderSubmissions(currentSubmissions);
@@ -335,11 +354,9 @@
       setSubmissionActionsVisibility(false);
     }
   }
-
   function setSubmissionActionsVisibility(visible) {
     submissionActions.style.display = visible ? 'flex' : 'none';
   }
-
   async function approveAllSubmissions(){
     if (!confirm('Aprobar todas las submissions actualmente visibles?')) return;
     const token = getToken(); if (!token){ alert('Guarda token'); return; }
@@ -350,7 +367,6 @@
       loadData();
     }catch(e){ alert('Error: '+e.message); }
   }
-
   async function deleteAllSubmissions(){
     if (!confirm('Eliminar todas las submissions? Esta acción no se puede deshacer.')) return;
     const token = getToken(); if (!token){ alert('Guarda token'); return; }
@@ -361,6 +377,6 @@
       loadData();
     }catch(e){ alert('Error: '+e.message); }
   }
-
   setView('sheet');
 })();
+
