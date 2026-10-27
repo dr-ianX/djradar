@@ -1,56 +1,33 @@
 # DJ Radar · Los Cabos
 
-Mapa interactivo en tiempo real que muestra DJs activos en Los Cabos, Baja California Sur.
+Mapa interactivo en tiempo real que muestra DJs activos en Los Cabos, Baja California Sur, con funcionalidades comunitarias como seguimiento, reseñas y chat.
 
 ## 🎯 Características
 
+### Core
 - **Mapa interactivo** con Leaflet.js
 - **Datos en tiempo real** desde Google Sheets
-- **Filtros** para ver todos los DJs o solo los que están en vivo
+- **Filtros** para ver todos los DJs, solo activos, o favoritos
 - **Diseño responsive** para móvil y desktop
 - **Actualización automática** cada 60 segundos
 - **Indicadores visuales** de DJs activos con animaciones
 
-## 🚀 Despliegue en Render
+### Funcionalidades Comunitarias
+- **Seguimiento de DJs y Venues**: Guarda tus DJs y venues favoritos con un botón ⭐
+- **Persistencia Local**: Todo se guarda en localStorage (sin necesidad de login)
+- **Sistema de Reseñas**: Deja reseñas cortas con emojis para cada evento
+- **Chat por Evento**: Chatea con otros asistentes en tiempo real durante eventos
+- **Panel de Admin**: Gestiona aprobaciones, overrides y moderación
 
-### 1. Preparar Google Sheet
 
-Crea una hoja de Google Sheets con las siguientes columnas (nombres flexibles):
-- `DJ` o `Artista` o `Nombre`
-- `Venue` o `Lugar` o `Club`
-- `Fecha` (formato: YYYY-MM-DD)
-- `Hora_inicio` (formato: HH:MM)
-- `Hora_fin` (formato: HH:MM)
-- `Latitud` (coordenadas decimales)
-- `Longitud` (coordenadas decimales)
-- `Estilo` o `Género` (opcional)
-
-### 2. Obtener URL CSV
-
-1. Ve a Archivo → Compartir → Publicar en la web
-2. Selecciona "Hoja de cálculo completa"
-3. Formato: Valores separados por comas (.csv)
-4. Copia la URL generada
-
-### 3. Configurar en Render
-
-1. Crea un nuevo **Web Service** en Render
-2. Selecciona **Node.js** como entorno
-3. Conecta este repositorio de GitHub
-4. En **Build & Deploy**, configura:
-   - **Build Command**: `npm install`
-   - **Start Command**: `npm start`
-5. Agrega variable de entorno:
-   - **Key**: `SHEET_URL`
-   - **Value**: [Tu URL CSV de Google Sheets]
-
-### 4. Arquitectura de Seguridad
+### Arquitectura de Seguridad
 
 La aplicación usa un backend Express simple que:
 - Sirve el HTML estático
 - Inyecta la variable de entorno `SHEET_URL` dinámicamente
-- Reemplaza el placeholder `__SHEET_URL__` con la URL real
 - Mantiene la URL segura fuera del código fuente público
+- Almacena reseñas y chats en archivos JSON locales
+- Sistema de autenticación simple para admin vía `ADMIN_PASS`
 
 
 ## 🎨 Tecnologías
@@ -58,7 +35,7 @@ La aplicación usa un backend Express simple que:
 - **HTML5** - Estructura
 - **CSS3** - Estilos (personalizado)
 - **JavaScript (Vanilla)** - Lógica frontend
-- **Express.js** - Backend simple para inyección de variables
+- **Express.js** - Backend para API y almacenamiento
 - **Leaflet.js** - Mapas
 - **CARTO Dark** - Tiles del mapa
 - **Font Awesome** - Iconos
@@ -69,13 +46,25 @@ La aplicación usa un backend Express simple que:
 ```
 DJRadar/
 ├── index.html          # Aplicación completa (HTML + CSS + JS)
-├── server.js           # Backend Express para inyección de variables
+├── server.js           # Backend Express con API endpoints
+├── admin.html          # Panel de administración
+├── admin.js            # Lógica del panel admin
 ├── package.json        # Dependencias y scripts de Node.js
 ├── render.yaml         # Configuración de despliegue en Render
+├── data/               # Almacenamiento local (creado automáticamente)
+│   ├── reviews.json    # Reseñas de eventos
+│   ├── chat/           # Chats por evento
+│   └── overrides.json  # Overrides de admin
 └── README.md           # Este archivo
 ```
 
 ## 🔧 Personalización
+
+### Variables de Entorno
+
+- `SHEET_URL` - URL de Google Sheets (CSV export)
+- `ADMIN_PASS` - Contraseña para el panel de admin
+- `GOOGLE_MAPS_API_KEY` - (Opcional) API key para geocoding Google
 
 ### Cambiar ubicación del mapa
 
@@ -94,14 +83,15 @@ El tema usa principalmente:
 - `#00ffaa` - Verde (indicadores activos)
 - `#0a0a0a` - Negro (fondo)
 
-## 🚧 Próximas Funcionalidades (Roadmap)
+## 📊 Estado del Desarrollo
 
-- [ ] Sistema de suscripciones para DJs
-- [ ] Sistema de suscripciones para venues
-- [ ] Sistema de suscripciones para asistentes
-- [ ] Autenticación de usuarios
-- [ ] Backend con base de datos
-- [ ] Panel de administración
-- [ ] Notificaciones push
-- [ ] Integración con redes sociales
+El proyecto sigue un roadmap por oleadas (ver `djradar next phase v 1.2.md`):
+
+- ✅ **Wave 1**: Mejoras al Radar + Persistencia Local (COMPLETADA)
+- ⚠️ **Wave 2**: Reseñas y Emojis (60% - falta likes y sincronización)
+- ⚠️ **Wave 3**: Chat por Evento + Chat de DJ (50% - falta chat exclusivo DJs)
+- ❌ **Wave 4**: Sistema de Emblemas y Gamificación (PENDIENTE)
+- ❌ **Wave 5**: Suscripciones de Usuarios y Roles (PENDIENTE)
+- ❌ **Wave 6**: Panel de Admin Avanzado y Analíticas (PENDIENTE)
+
 

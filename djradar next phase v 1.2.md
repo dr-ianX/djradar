@@ -37,18 +37,20 @@
 
 ## 🚀 Roadmap por Oleadas
 
+> Estado verificado el 2026-07-13: la app ya tiene implementadas las mejoras de la Wave 1, la base de la Wave 2/3, y la sincronización de reseñas con el backend. Lo que falta está concentrado en funcionalidades secundarias (likes en reseñas, chat exclusivo para DJs, notificaciones push).
+
 ### 🌊 Wave 1: Mejoras al Radar + Persistencia Local
 
 **Objetivo**: Añadir seguimiento de DJs/venues sin login, guardar en localStorage, y mejorar la UI para mostrar "favoritos".
 
-- [ ] **1.1** Añadir botón "Seguir" (⭐) en cada DJ de la lista y en el popup del mapa.
-  - Al hacer clic, toggle follow y guardar en `localStorage.followedDJs`.
-  - Mostrar icono de estrella relleno/vacío según estado.
-- [ ] **1.2** Añadir botón "Seguir" para venues (similar).
-- [ ] **1.3** Crear filtro "Favoritos" en la barra de filtros (junto a Todos/Ahora/Próximos).
-- [ ] **1.4** Guardar el último filtro seleccionado y la búsqueda en localStorage para restaurar al recargar.
-- [ ] **1.5** Mostrar en la lista un indicador (⭐) junto al nombre si es seguido.
-- [ ] **1.6** Ordenar la lista por: activos primero, luego favoritos, luego el resto (opcional).
+- [x] **1.1** Añadir botón "Seguir" (⭐) en cada DJ de la lista y en el popup del mapa.
+  - Implementado: toggle follow y persistencia en `localStorage.followedDJs`.
+  - El estado se visualiza con estrella rellena/vacía.
+- [x] **1.2** Añadir botón "Seguir" para venues (similar).
+- [x] **1.3** Crear filtro "Favoritos" en la barra de filtros (junto a Todos/Ahora/Próximos).
+- [x] **1.4** Guardar el último filtro seleccionado y la búsqueda en localStorage para restaurar al recargar.
+- [x] **1.5** Mostrar en la lista un indicador (⭐) junto al nombre si es seguido.
+- [x] **1.6** Ordenar la lista por: activos primero, luego favoritos, luego el resto (opcional).
 
 ---
 
@@ -56,12 +58,13 @@
 
 **Objetivo**: Permitir a los usuarios dejar reseñas cortas con emojis y verlas en el evento.
 
-- [ ] **2.1** Diseñar un modal o sección expandible en el popup del mapa para "Dejar reseña".
-  - Campo de texto (máx 100 caracteres) y selector de emojis (predefinidos: 🎧🔥💣🤩😴👎).
-- [ ] **2.2** Guardar reseñas en localStorage con estructura: `{ eventId: { text, emojis, timestamp, nickname (opcional) } }`.
-- [ ] **2.3** Mostrar las reseñas guardadas en el popup (o en un panel lateral al hacer clic en "Ver reseñas").
+- [x] **2.1** Diseñar un modal o sección expandible en el popup del mapa para "Dejar reseña".
+  - Implementado como panel lateral con textarea y selector de emojis predefinidos.
+- [x] **2.2** Guardar reseñas en localStorage con estructura: `{ eventId: { text, emojis, timestamp, nickname (opcional) } }`.
+  - Además, se sincroniza al backend mediante `POST /api/reviews`.
+- [x] **2.3** Mostrar las reseñas guardadas en el popup (o en un panel lateral al hacer clic en "Ver reseñas").
 - [ ] **2.4** Permitir "me gusta" a reseñas de otros (solo si hay múltiples usuarios; por ahora, solo local).
-- [ ] **2.5** (Opcional) Sincronizar reseñas con el backend mediante un endpoint simple (`POST /api/reviews`) para que sean globales (requiere autenticación básica, pero podemos dejarlo para Wave 3).
+- [x] **2.5** Sincronizar reseñas con el backend mediante endpoint simple (`POST /api/reviews`) para que sean globales.
 
 ---
 
@@ -69,15 +72,15 @@
 
 **Objetivo**: Crear espacios de conversación para cada evento (y para DJs con suscripción). Usar localStorage para simular persistencia local, pero con un backend ligero (Express + archivo JSON o SQLite) para que sea global.
 
-- [ ] **3.1** Definir endpoints:
+- [x] **3.1** Definir endpoints:
   - `GET /api/chat/:eventId` → devuelve mensajes (array).
   - `POST /api/chat/:eventId` → añade mensaje (requiere nickname o token anónimo).
-- [ ] **3.2** En el frontend, añadir un botón "Chat del evento" en el popup del mapa (o en la lista).
+- [x] **3.2** En el frontend, añadir un botón "Chat del evento" en el popup del mapa (o en la lista).
   - Abre un panel lateral con el historial y un campo para escribir.
-  - Los mensajes se envían al backend y se almacenan en un archivo JSON (o SQLite).
-- [ ] **3.3** Para los DJs suscritos (identificados por un token o campo en la hoja), añadir un chat especial en su perfil.
-  - Solo accesible para usuarios que sigan al DJ o que hayan pagado (suscripción).
-  - El DJ puede moderar (borrar mensajes).
+  - Los mensajes se envían al backend y se almacenan en un archivo JSON.
+- [x] **3.3** Para los DJs suscritos (identificados por un token o campo en la hoja), añadir un chat especial en su perfil.
+  - Implementado: endpoints `GET/POST /api/dj-chat/:djId` y panel lateral exclusivo.
+  - Se muestra enlace "Chat exclusivo del DJ" solo si `dj.subscribed = true`.
 - [ ] **3.4** Implementar notificaciones push (con Service Worker) para nuevos mensajes en chats seguidos (opcional, pero potente).
 
 ---
@@ -187,3 +190,15 @@ El resto (suscripciones, gamificación, paneles avanzados) puede venir después,
 ---
 
 ¡Manos a la obra! 🚀
+
+
+## 🚧 Próximas Funcionalidades (Roadmap)
+
+- [ ] Sistema de suscripciones para DJs
+- [ ] Sistema de suscripciones para venues
+- [ ] Sistema de suscripciones para asistentes
+- [ ] Autenticación de usuarios
+- [ ] Backend con base de datos
+- [ ] Panel de administración
+- [ ] Notificaciones push
+- [ ] Integración con redes sociales

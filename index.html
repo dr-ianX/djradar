@@ -390,6 +390,21 @@
         #review-panel .panel-section { display:none; }
         #review-panel .panel-section.active { display:block; }
         .review-item, .chat-message { padding:8px; border-radius:8px; background:#0b1220; margin-bottom:8px; border:1px solid #172733; }
+        #dj-chat-panel {
+            position: fixed;
+            right: 20px;
+            top: 60px;
+            width: 340px;
+            max-height: calc(100vh - 120px);
+            background: rgba(10, 17, 28, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid #00d4ff44;
+            border-radius: 12px;
+            padding: 16px;
+            z-index: 2000;
+            display: none;
+        }
+        #dj-chat-panel h3 { margin-bottom: 8px; color:#00d4ff }
         .chat-message { display:flex; flex-direction:column; }
         .chat-message .chat-meta { font-size:0.82rem; color:#99aabb; margin-bottom:4px; }
         .review-form textarea, .chat-input textarea { width:100%; min-height:68px; background:#071017; color:#e8f3ff; border:1px solid #223343; padding:8px; border-radius:6px; resize:vertical; }
@@ -512,6 +527,22 @@
     </div>
 </div>
 
+<!-- ===== DJ CHAT PANEL HTML ===== -->
+<div id="dj-chat-panel" aria-hidden="true">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 id="dj-chat-title">Chat del DJ</h3>
+        <button id="close-dj-chat" style="background:transparent;border:none;color:#9fbfdc;cursor:pointer;font-size:1.1rem">✖</button>
+    </div>
+    <div id="dj-chat-list" class="panel-body"></div>
+    <div class="chat-actions">
+        <input id="dj-chat-nickname" placeholder="Tu apodo" />
+        <button id="send-dj-chat">Enviar</button>
+    </div>
+    <div class="chat-input" style="margin-top:8px">
+        <textarea id="dj-chat-text" maxlength="280" placeholder="Escribe un mensaje al DJ"></textarea>
+    </div>
+</div>
+
 <!-- ============================================================ -->
 <!--  CONFIGURACIÓN DE GOOGLE SHEETS                              -->
 <!-- ============================================================ -->
@@ -599,6 +630,29 @@
         // ============================================================
         const LS_REVIEWS = 'userReviews';
         const LS_REVIEW_LIKES = 'reviewLikes';
+        const LS_USER_ID = 'djradar_user_id';
+        
+        // Generate or get user ID for like synchronization
+        function getUserId() {
+            let userId = localStorage.getItem(LS_USER_ID);
+            if (!userId) {
+                userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem(LS_USER_ID, userId);
+            }
+            return userId;
+        }
+        
+        // Sync likes from server on load
+        async function syncUserLikes() {
+            const userId = getUserId();
+            try {
+                const res = await fetch(`/api/likes/${encodeURIComponent(userId)}`);
+                if (res.ok) {
+                    const serverLikes = await res.json();
+                    writeJSON(LS_REVIEW_LIKES, serverLikes);
+                }
+            } catch (e) { /* ignore network errors */ }
+        }
         
         async function getReviewsFor(id) {
             // Try server first
@@ -641,11 +695,25 @@
             return likes[reviewId] || false;
         }
 
-        function toggleReviewLike(reviewId) {
-            const likes = getReviewLikes();
-            likes[reviewId] = !likes[reviewId];
-            writeJSON(LS_REVIEW_LIKES, likes);
-            return likes[reviewId];
+        async function toggleReviewLike(reviewId) {
+            const userId = getUserId();
+            const currentLikes = getReviewLikes();
+            const newLikedState = !currentLikes[reviewId];
+            
+            // Update local storage immediately
+            currentLikes[reviewId] = newLikedState;
+            writeJSON(LS_REVIEW_LIKES, currentLikes);
+            
+            // Try to sync with server
+            try {
+                await fetch('/api/likes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId, reviewId, liked: newLikedState })
+                });
+            } catch (e) { /* ignore network errors */ }
+            
+            return newLikedState;
         }
 
         // Review panel interactions
@@ -703,6 +771,7 @@
                         const liked = isReviewLiked(reviewId);
                         const likeIcon = liked ? 'fas fa-heart' : 'far fa-heart';
                         const likeColor = liked ? '#ff6b6b' : '#666';
+                        const likeCount = r.likeCount || 0;
                         return `
                         <div class="review-item">
                             <div style="font-size:0.9rem;color:#cfefff;font-weight:600">${r.nickname ? r.nickname : 'Anónimo'} <span style="font-size:0.8rem;color:#99aabb">· ${new Date(r.ts).toLocaleString()}</span></div>
@@ -710,7 +779,7 @@
                             <div style="margin-top:6px">${(r.emojis||[]).map(e=>`<span style="margin-right:6px">${e}</span>`).join('')}</div>
                             <div style="margin-top:6px">
                                 <button class="like-btn" data-review-id="${reviewId}" style="background:transparent;border:none;color:${likeColor};cursor:pointer;font-size:0.9rem;padding:0;">
-                                    <i class="${likeIcon}"></i> Me gusta
+                                    <i class="${likeIcon}"></i> Me gusta ${likeCount > 0 ? `(${likeCount})` : ''}
                                 </button>
                             </div>
                         </div>
@@ -752,6 +821,79 @@
             reviewPanel.style.display = 'none';
             reviewPanel.setAttribute('aria-hidden','true');
         }
+
+        // DJ Chat Panel
+        const djChatPanel = document.getElementById('dj-chat-panel');
+        const djChatListEl = document.getElementById('dj-chat-list');
+        const djChatTitleEl = document.getElementById('dj-chat-title');
+        const djChatTextEl = document.getElementById('dj-chat-text');
+        const djChatNickEl = document.getElementById('dj-chat-nickname');
+        const sendDJChatBtn = document.getElementById('send-dj-chat');
+        const closeDJChatBtn = document.getElementById('close-dj-chat');
+        let currentDJChatTarget = null;
+
+        function openDJChatPanel(djId, djName) {
+            currentDJChatTarget = djId;
+            djChatTitleEl.textContent = `Chat del DJ · ${djName}`;
+            renderDJChatList(djId);
+            djChatPanel.style.display = 'block';
+            djChatPanel.setAttribute('aria-hidden','false');
+        }
+
+        function closeDJChatPanel() {
+            currentDJChatTarget = null;
+            djChatPanel.style.display = 'none';
+            djChatPanel.setAttribute('aria-hidden','true');
+        }
+
+        async function renderDJChatList(djId) {
+            try {
+                const res = await fetch(`/api/dj-chat/${encodeURIComponent(djId)}`);
+                if (!res.ok) throw new Error('Error DJ chat');
+                const messages = await res.json();
+                if (!Array.isArray(messages) || !messages.length) {
+                    djChatListEl.innerHTML = `<div style="color:#99aabb;padding:8px">No hay mensajes aún. Inicia la conversación con el DJ.</div>`;
+                    return;
+                }
+                djChatListEl.innerHTML = messages.slice().reverse().map(msg => {
+                    const isDJ = msg.isDJ === true;
+                    const djStyle = isDJ ? 'background:#00d4ff22;border:1px solid #00d4ff44;' : '';
+                    const djLabel = isDJ ? '<span style="color:#00d4ff;font-size:0.75rem;margin-left:6px;">🎧 DJ</span>' : '';
+                    return `
+                    <div class="chat-message" style="${djStyle}">
+                        <div class="chat-meta">
+                            <span style="color:#cfefff;font-weight:600">${escapeHtml(msg.nickname)}</span>
+                            ${djLabel}
+                            <span style="margin-left:auto;font-size:0.75rem;color:#666">${new Date(msg.ts).toLocaleString()}</span>
+                        </div>
+                        <div>${escapeHtml(msg.text)}</div>
+                    </div>
+                `}).join('');
+            } catch (e) {
+                djChatListEl.innerHTML = `<div style="color:#ffbb88;padding:8px">No se pudo cargar el chat del DJ.</div>`;
+            }
+        }
+
+        sendDJChatBtn.addEventListener('click', async () => {
+            if (!currentDJChatTarget) return;
+            const text = (djChatTextEl.value || '').trim().slice(0,280);
+            if (!text) return alert('Escribe un mensaje de chat');
+            const nickname = (djChatNickEl.value || '').trim() || 'Anónimo';
+            try {
+                const res = await fetch(`/api/dj-chat/${encodeURIComponent(currentDJChatTarget)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, nickname, ts: Date.now() })
+                });
+                if (!res.ok) throw new Error('Error sending DJ chat');
+                djChatTextEl.value = '';
+                renderDJChatList(currentDJChatTarget);
+            } catch (e) {
+                alert('Error al enviar mensaje al DJ');
+            }
+        });
+
+        closeDJChatBtn.addEventListener('click', closeDJChatPanel);
 
         function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 
@@ -809,23 +951,6 @@
         tabReviews.addEventListener('click', () => switchPanel('reviews'));
         tabChat.addEventListener('click', () => switchPanel('chat'));
         closeReviewBtn.addEventListener('click', closeReviewPanel);
-
-        window.openReviewPanel = function(id, name, venue) { renderReviewPanel(id, name, venue); };
-        window.openChatPanel = function(id, name, venue) { renderReviewPanel(id, name, venue); switchPanel('chat'); };
-
-        // Exponer helpers para popups
-        window.toggleFollowDJ = function(id) {
-            const res = toggleFollowDJ(id);
-            renderDJList(allDJs, currentFilter);
-            renderMarkers(allDJs);
-            return res;
-        };
-        window.toggleFollowVenue = function(venue) {
-            const res = toggleFollowVenue(venue);
-            renderDJList(allDJs, currentFilter);
-            renderMarkers(allDJs);
-            return res;
-        };
 
         // ============================================================
         //  REFERENCIAS DOM
@@ -1327,6 +1452,7 @@
                                 <a href="#" onclick="event.preventDefault(); window.openChatPanel('${dj.id}','${dj.name}','${dj.venue}');" style="color:#9fbfdc; text-decoration:none;">Chat</a>
                                 &nbsp;·&nbsp;
                                 <a href="#" onclick="event.preventDefault(); window.openReviewPanel('${dj.id}','${dj.name}','${dj.venue}'); document.getElementById('review-text').focus();" style="color:#9fbfdc; text-decoration:none;">Dejar reseña</a>
+                                ${dj.subscribed ? '<br><a href="#" onclick="event.preventDefault(); window.openDJChatPanel(\'' + dj.id + '\',\'' + dj.name + '\');" style="color:#00d4ff; text-decoration:none;">🎧 Chat exclusivo del DJ</a>' : ''}
                             `);
 
                     if (isActive) {
@@ -1418,6 +1544,8 @@
         // ============================================================
         function init() {
             initMap();
+            // Sync user likes from server
+            syncUserLikes();
             // Restaurar último filtro y búsqueda
             try {
                 const lastSearch = localStorage.getItem(LS_LAST_SEARCH) || '';
@@ -1426,6 +1554,18 @@
                 currentFilter = lastFilter;
                 filterButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.filter === currentFilter));
             } catch (e) { /* ignore */ }
+
+            // Expose functions globally for onclick handlers (after loadData is defined)
+            window.openReviewPanel = renderReviewPanel;
+            window.openChatPanel = function(id, name, venue) {
+                renderReviewPanel(id, name, venue);
+                switchPanel('chat');
+            };
+            window.openDJChatPanel = openDJChatPanel;
+            window.toggleFollowDJ = function(id) {
+                toggleFollowDJ(id);
+                loadData(); // Refresh UI
+            };
 
             loadData();
 

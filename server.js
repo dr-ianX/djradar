@@ -195,6 +195,7 @@ const OVERRIDES_FILE = path.join(__dirname, 'overrides.json');
 
 // -------------------- Reviews storage --------------------
 const REVIEWS_FILE = path.join(__dirname, 'data', 'reviews.json');
+const LIKES_FILE = path.join(__dirname, 'data', 'likes.json');
 
 function readReviews() {
     try {
@@ -219,12 +220,42 @@ function writeReviews(obj) {
     }
 }
 
+function readLikes() {
+    try {
+        if (!fs.existsSync(path.dirname(LIKES_FILE))) fs.mkdirSync(path.dirname(LIKES_FILE), { recursive: true });
+        if (!fs.existsSync(LIKES_FILE)) return {};
+        const txt = fs.readFileSync(LIKES_FILE, 'utf8');
+        return txt ? JSON.parse(txt) : {};
+    } catch (e) {
+        console.error('Failed reading likes:', e);
+        return {};
+    }
+}
+
+function writeLikes(obj) {
+    try {
+        if (!fs.existsSync(path.dirname(LIKES_FILE))) fs.mkdirSync(path.dirname(LIKES_FILE), { recursive: true });
+        fs.writeFileSync(LIKES_FILE, JSON.stringify(obj, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('Failed writing likes:', e);
+        return false;
+    }
+}
+
 app.get('/api/reviews/:id', (req, res) => {
     const id = req.params.id;
     if (!id) return res.status(400).json({ error: 'Missing id' });
     const all = readReviews();
+    const likes = readLikes();
     const arr = Array.isArray(all[id]) ? all[id] : [];
-    res.json(arr);
+    // Add like counts to each review
+    const reviewsWithLikes = arr.map((review, idx) => {
+        const reviewId = `${id}_${idx}`;
+        const likeCount = Object.values(likes).filter(userLikes => userLikes[reviewId]).length;
+        return { ...review, likeCount };
+    });
+    res.json(reviewsWithLikes);
 });
 
 app.post('/api/reviews', (req, res) => {
@@ -243,6 +274,30 @@ app.post('/api/reviews', (req, res) => {
     const ok = writeReviews(all);
     if (!ok) return res.status(500).json({ error: 'Failed to save' });
     res.json({ ok: true });
+});
+
+// -------------------- Likes endpoints --------------------
+app.post('/api/likes', (req, res) => {
+    const body = req.body || {};
+    const userId = body.userId;
+    const reviewId = body.reviewId;
+    const liked = body.liked;
+
+    if (!userId || !reviewId) return res.status(400).json({ error: 'Missing userId or reviewId' });
+
+    const all = readLikes();
+    if (!all[userId]) all[userId] = {};
+    all[userId][reviewId] = liked;
+    const ok = writeLikes(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
+app.get('/api/likes/:userId', (req, res) => {
+    const userId = req.params.userId;
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+    const all = readLikes();
+    res.json(all[userId] || {});
 });
 
 // -------------------- Chats storage --------------------
@@ -293,6 +348,58 @@ app.post('/api/chat/:id', (req, res) => {
     all[id] = all[id] || [];
     all[id].push({ text, nickname, ts, isDJ });
     const ok = writeChats(all);
+    if (!ok) return res.status(500).json({ error: 'Failed to save' });
+    res.json({ ok: true });
+});
+
+// DJ-specific chat (for subscribed DJs)
+const DJ_CHATS_FILE = path.join(__dirname, 'data', 'dj_chats.json');
+
+function readDJChats() {
+    try {
+        if (!fs.existsSync(path.dirname(DJ_CHATS_FILE))) fs.mkdirSync(path.dirname(DJ_CHATS_FILE), { recursive: true });
+        if (!fs.existsSync(DJ_CHATS_FILE)) return {};
+        const txt = fs.readFileSync(DJ_CHATS_FILE, 'utf8');
+        return txt ? JSON.parse(txt) : {};
+    } catch (e) {
+        console.error('Failed reading DJ chats:', e);
+        return {};
+    }
+}
+
+function writeDJChats(obj) {
+    try {
+        if (!fs.existsSync(path.dirname(DJ_CHATS_FILE))) fs.mkdirSync(path.dirname(DJ_CHATS_FILE), { recursive: true });
+        fs.writeFileSync(DJ_CHATS_FILE, JSON.stringify(obj, null, 2), 'utf8');
+        return true;
+    } catch (e) {
+        console.error('Failed writing DJ chats:', e);
+        return false;
+    }
+}
+
+app.get('/api/dj-chat/:djId', (req, res) => {
+    const djId = req.params.djId;
+    if (!djId) return res.status(400).json({ error: 'Missing djId' });
+    const all = readDJChats();
+    const arr = Array.isArray(all[djId]) ? all[djId] : [];
+    res.json(arr);
+});
+
+app.post('/api/dj-chat/:djId', (req, res) => {
+    const djId = req.params.djId;
+    const body = req.body || {};
+    const text = typeof body.text === 'string' ? body.text.trim().slice(0, 280) : '';
+    const nickname = body.nickname ? String(body.nickname).slice(0, 24) : 'Anónimo';
+    const ts = body.ts || Date.now();
+    const isDJ = body.isDJ === true;
+
+    if (!djId || !text) return res.status(400).json({ error: 'Missing djId or text' });
+
+    const all = readDJChats();
+    all[djId] = all[djId] || [];
+    all[djId].push({ text, nickname, ts, isDJ });
+    const ok = writeDJChats(all);
     if (!ok) return res.status(500).json({ error: 'Failed to save' });
     res.json({ ok: true });
 });
