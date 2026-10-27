@@ -1,11 +1,12 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 
 function normalizeSheetUrl(rawUrl) {
     if (!rawUrl) return '';
@@ -180,14 +181,21 @@ app.get('/api/geocode', async (req, res) => {
     }
 });
 
-app.use(express.static(path.join(__dirname)));
+// Static: solo assets públicos explícitos — nunca servir __dirname completo
+// (expondría server.js, package.json, overrides.json y data/*.json)
+app.get('/admin.js', (req, res) => {
+    res.type('js').send(fs.readFileSync(path.join(__dirname, 'admin.js'), 'utf8'));
+});
 
 // -------------------- Admin overrides API --------------------
 function requireAdmin(req, res, next) {
     const token = req.headers['x-admin-token'] || '';
     const adminPass = process.env.ADMIN_PASS || '';
     if (!adminPass) return res.status(500).json({ error: 'ADMIN_PASS not configured on server' });
-    if (!token || token !== adminPass) return res.status(401).json({ error: 'Unauthorized' });
+    const a = Buffer.from(String(token));
+    const b = Buffer.from(String(adminPass));
+    const ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+    if (!ok) return res.status(401).json({ error: 'Unauthorized' });
     next();
 }
 
